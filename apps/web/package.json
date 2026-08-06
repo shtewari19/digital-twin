@@ -1,0 +1,6 @@
+{
+  "name": "digital-twin-web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Next.js frontend for the Digital Twin platform. Not scaffolded yet — see README.md."
+}

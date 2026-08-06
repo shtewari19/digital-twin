@@ -1,82 +1,43 @@
-# Digital Twin API
+# Digital Twin
 
-A FastAPI backend for a domain-agnostic message-testing platform: operators
-define a **domain** (market/audience context), spin up a **study** with
-candidate **messages** and an **avatar** panel (AI personas — digital twins
-of the target audience), run the study through an SSR pipeline, and get
-back a ranked recommendation plus a qualitative report.
+A domain-agnostic message-testing platform: operators define a **domain**
+(market/audience context), spin up a **study** with candidate **messages**
+and an **avatar** panel (AI personas — digital twins of the target
+audience), run the study through an SSR pipeline, and get back a ranked
+recommendation plus a qualitative report.
 
+This is a **monorepo**: the frontend, backend API, and pipeline workers live
+in one repo under `apps/`, rather than three separate repos. Why: the three
+services are tightly coupled through one contract (`apps/web` and
+`apps/engine` both depend on `apps/api`'s schemas and the database schema),
+and a single schema/contract change often needs coordinated updates across
+more than one of them. Splitting repos would turn each of those into
+multiple PRs that have to land in the right order, plus duplicated CI/tooling
+per repo. Folder boundaries + CODEOWNERS + path-scoped CI (below) get the
+"don't collide" property without that coordination tax. Revisit this if
+these ever become independent products with separate release cadences.
 
-## Stack
+## Where each team works
 
-- **API:** FastAPI + Pydantic v2 (async)
-- **Database:** PostgreSQL 16 + pgvector, via SQLAlchemy 2.0 (asyncpg)
-- **Cache / rate limiting:** Redis
-- **Local dev services:** Docker Compose
+| App | Path | Stack | Status | Docs |
+|---|---|---|---|---|
+| Web | [`apps/web`](apps/web) | Next.js (App Router) + TypeScript | Not scaffolded yet | [apps/web/README.md](apps/web/README.md) |
+| API | [`apps/api`](apps/api) | FastAPI + SQLAlchemy (async) + Postgres/pgvector | Walking skeleton — one real endpoint | [apps/api/README.md](apps/api/README.md) |
+| Engine | [`apps/engine`](apps/engine) | Python workers (Temporal-orchestrated) | Not implemented yet | [apps/engine/README.md](apps/engine/README.md) |
 
-## Requirements
+Each app is self-contained: its own dependency manifest
+(`apps/api/pyproject.toml`, `apps/engine/pyproject.toml`,
+`apps/web/package.json`), its own README with local setup instructions, and
+its own CI job scoped to its own path (see CI below). Don't reach into
+another app's folder to fix something in it — that's what its README and
+CODEOWNERS entry are for.
 
-- Python 3.11+
-- Docker Desktop (for Postgres + Redis)
+## Shared, root-level things
 
-## Setup
-
-```bash
-# 1. Configure environment
-cp .env.example .env
-
-# 2. Start Postgres (pgvector) + Redis
-docker compose up -d
-
-# 3. Create a virtualenv and install dependencies
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-
-# 4. Create the schema and seed dev data
-python scripts/apply_schema.py
-python scripts/seed_dev_data.py
-
-# 5. Run the API
-uvicorn app.main:app --reload
-```
-
-## Verify it's working
-
-```bash
-curl http://localhost:8000/health
-curl http://localhost:8000/api/v1/domains
-```
-
-The second call should return the 4 domains seeded by
-`scripts/seed_dev_data.py`. Interactive API docs are at
-`http://localhost:8000/docs`.
-
-## Project layout
-
-```
-app/
-  main.py            FastAPI entrypoint, /health
-  core/
-    config.py         Settings (env-driven), loaded from .env
-  db/
-    base.py            Shared SQLAlchemy declarative base
-    session.py          Async engine + per-request session dependency
-    models/              One ORM model per table (users, domains so far)
-  api/
-    deps.py             Shared dependencies: DB session, current-user stub
-    pagination.py        Cursor-pagination helpers (encode/decode)
-    v1/
-      router.py           Aggregates all /api/v1 routers
-      domains.py           GET /domains
-  schemas/              Pydantic request/response models for every API schema
-scripts/
-  apply_schema.py       Applies setup.sql directly (see Schema management)
-  seed_dev_data.py       Seeds the fixed dev user + 4 sample domains
-  setup.sql              The database schema (source of truth)
-docker-compose.yml      Postgres (pgvector) + Redis for local dev
-```
-
+- [`docker-compose.yml`](docker-compose.yml) — Postgres (pgvector) + Redis,
+  shared local dev infrastructure both `apps/api` and (eventually)
+  `apps/engine` connect to. Run `docker compose up -d` from the repo root.
+- `.github/` — CI, PR template, CODEOWNERS, Dependabot (all below).
 
 ## Contributing
 
@@ -90,17 +51,16 @@ this is convention rather than a hard gate — branch off `main` using one of:
 **Pull requests** auto-populate from
 [`.github/pull_request_template.md`](.github/pull_request_template.md).
 
-**CI** ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs `ruff
-check` on every push and pull request to `main`. Run the same check locally
-before pushing:
-
-```bash
-pip install -r requirements-dev.txt
-ruff check .
-```
+**CI** is split per app so editing one app doesn't trigger another's checks:
+[`.github/workflows/ci-api.yml`](.github/workflows/ci-api.yml) and
+[`.github/workflows/ci-engine.yml`](.github/workflows/ci-engine.yml) each run
+`ruff check` scoped to their own `apps/*` path. There's no `ci-web.yml` yet —
+add one once `apps/web` has a real Next.js app to lint/build.
 
 **Dependency updates** ([`.github/dependabot.yml`](.github/dependabot.yml))
-opens weekly PRs to bump pip dependencies and the GitHub Actions used in
-`ci.yml`. [`CODEOWNERS`](.github/CODEOWNERS) assigns `@shtewari19` as the
-default reviewer for everything — only takes effect on PRs if branch
-protection has "Require review from Code Owners" enabled.
+opens weekly PRs per app (`apps/api`, `apps/engine` on pip; `apps/web` on
+npm) plus the GitHub Actions used in CI.
+
+**Code ownership** ([`.github/CODEOWNERS`](.github/CODEOWNERS)) currently
+assigns `@shtewari19` as the global fallback reviewer — split it per
+`apps/*` path once there are GitHub handles for each team to assign.

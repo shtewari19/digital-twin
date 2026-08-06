@@ -1,12 +1,21 @@
 version: 2
 updates:
-  # requirements.txt / requirements-dev.txt at the repo root
   - package-ecosystem: "pip"
-    directory: "/"
+    directory: "/apps/api"
     schedule:
       interval: "weekly"
 
-  # actions/checkout, actions/setup-python, etc. in .github/workflows/*.yml
+  - package-ecosystem: "pip"
+    directory: "/apps/engine"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "npm"
+    directory: "/apps/web"
+    schedule:
+      interval: "weekly"
+
+  # actions/checkout, actions/setup-python, etc. across every workflow file
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:

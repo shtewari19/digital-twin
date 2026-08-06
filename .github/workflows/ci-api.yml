@@ -1,0 +1,33 @@
+name: CI (api)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/api/**"
+      - ".github/workflows/ci-api.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "apps/api/**"
+      - ".github/workflows/ci-api.yml"
+
+jobs:
+  lint:
+    name: Lint (ruff)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install
+        run: pip install -e ".[dev]"
+
+      - name: Run ruff
+        run: ruff check .
