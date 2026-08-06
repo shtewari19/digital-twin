@@ -9,4 +9,4 @@ asyncpg>=0.29
 
 pydantic>=2.9
 pydantic-settings>=2.5
-email-validator>=2.2   # pydantic EmailStr (app/schemas/platform.py:User)
+email-validator>=2.3.0   # pydantic EmailStr (app/schemas/platform.py:User)
