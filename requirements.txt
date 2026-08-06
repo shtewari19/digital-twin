@@ -2,7 +2,7 @@
 # Test/lint tooling (pytest, ruff) lands with milestone 2.
 
 fastapi>=0.115
-uvicorn[standard]>=0.32
+uvicorn[standard]>=0.52.1
 
 sqlalchemy[asyncio]>=2.0.35
 asyncpg>=0.29
