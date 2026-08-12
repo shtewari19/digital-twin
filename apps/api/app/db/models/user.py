@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import ClassVar
 
 from sqlalchemy import DateTime, String, func, text
 from sqlalchemy.dialects.postgresql import CITEXT, UUID
@@ -22,7 +23,7 @@ class User(Base):
     """A user, mirrored from Entra ID and keyed by its `oid` claim."""
 
     __tablename__ = "users"
-    __table_args__ = {"schema": "core"}
+    __table_args__: ClassVar[dict[str, str]] = {"schema": "core"}
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),

@@ -104,7 +104,7 @@ from app.schemas.runs import (
     ScoreDistribution,
 )
 
-__all__ = [
+__all__ = [  # noqa: RUF022 — grouped by schema, sorted within each group
     # common
     "APIModel",
     "Page",

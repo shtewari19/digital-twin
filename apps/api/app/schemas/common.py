@@ -16,11 +16,11 @@ from pydantic import BaseModel, ConfigDict, Field
 
 __all__ = [
     "APIModel",
+    "Page",
+    "PageMeta",
     "Priority",
     "Problem",
     "Timestamps",
-    "PageMeta",
-    "Page",
 ]
 
 _T = TypeVar("_T", bound=BaseModel)
