@@ -9,6 +9,7 @@ back a ranked recommendation plus a qualitative report.
 ## Stack
 
 - **API:** FastAPI + Pydantic v2 (async)
+- **Auth:** Microsoft Entra ID (JWT via JWKS — signature, `iss`, `aud`, `exp`)
 - **Database:** PostgreSQL 16 + pgvector, via SQLAlchemy 2.0 (asyncpg)
 - **Cache / rate limiting:** Redis
 
@@ -17,6 +18,7 @@ back a ranked recommendation plus a qualitative report.
 - Python 3.11+
 - Docker Desktop (for Postgres + Redis — see the repo-root
   [`docker-compose.yml`](../../docker-compose.yml))
+- An Entra ID app registration (tenant id + client id)
 
 ## Setup
 
@@ -25,6 +27,7 @@ Run from `apps/api/` (this directory):
 ```bash
 # 1. Configure environment
 cp .env.example .env
+# Fill APP_ENTRA_TENANT_ID and APP_ENTRA_CLIENT_ID (see Entra section below)
 
 # 2. Start Postgres (pgvector) + Redis — from the repo root
 (cd ../.. && docker compose up -d)
@@ -46,59 +49,96 @@ uvicorn app.main:app --reload
 
 ```bash
 curl http://localhost:8000/health
-curl http://localhost:8000/api/v1/domains
 ```
 
-The second call should return the 4 domains seeded by
-`scripts/seed_dev_data.py`. Interactive API docs are at
-`http://localhost:8000/docs`.
+Protected routes need a Bearer token (see below):
+
+```bash
+curl -H "Authorization: Bearer <token>" http://localhost:8000/api/v1/me
+curl -H "Authorization: Bearer <token>" http://localhost:8000/api/v1/domains
+```
+
+Interactive API docs (Authorize with Bearer JWT): `http://localhost:8000/docs`.
 
 ## Project layout
 
 ```
 app/
-  main.py            FastAPI entrypoint, /health
+  main.py              FastAPI entrypoint, /health, logging init
   core/
-    config.py         Settings (env-driven), loaded from .env
+    config.py          Settings (env-driven), including Entra IDs
+    auth.py            JWKS fetch + JWT validation (iss/aud/exp/signature)
+    logging.py         Re-export of utility.logging for apps/api
   db/
-    base.py            Shared SQLAlchemy declarative base
-    session.py          Async engine + per-request session dependency
-    models/              One ORM model per table (users, domains so far)
+    models/            ORM models (users, domains so far)
   api/
-    deps.py             Shared dependencies: DB session, current-user stub
-    pagination.py        Cursor-pagination helpers (encode/decode)
+    deps.py            DB session + get_current_user (JWT + JIT provision)
     v1/
-      router.py           Aggregates all /api/v1 routers
-      domains.py           GET /domains
-  schemas/              Pydantic request/response models for every API schema
+      router.py
+      me.py            GET /me
+      domains.py       GET /domains
+  schemas/             Pydantic request/response models
 scripts/
-  apply_schema.py       Applies setup.sql directly
-  seed_dev_data.py       Seeds the fixed dev user + 4 sample domains
-  setup.sql              The database schema (source of truth)
-pyproject.toml          Dependencies (PEP 621) + ruff config
+  apply_schema.py
+  seed_dev_data.py
+  setup.sql
+  get_dev_token.py     Device-code helper for local /me testing
+pyproject.toml
 ```
+
+Shared monorepo code lives in [`../../utility`](../../utility) (logging today).
+
+## Microsoft Entra ID (Azure AD) — local setup
+
+Full Azure Portal + SSO walkthrough (Digital Twin only):
+
+**→ [`docs/ENTRA_SSO_SETUP.md`](docs/ENTRA_SSO_SETUP.md)**
+
+Short version:
+
+1. Create Entra app registration (SPA redirect for the frontend).
+2. Put `APP_ENTRA_TENANT_ID` and `APP_ENTRA_CLIENT_ID` in `.env`.
+3. Expose an API scope for FE access tokens (`api://<client-id>/access_as_user`).
+4. Run the API; get a user token with `python scripts/get_dev_token.py`.
+5. `GET /api/v1/me` with `Authorization: Bearer <token>` — first call JIT-creates `core.users`.
+
+Never commit secrets. Client **secret is not required** for API JWT validation
+(JWKS). Client-credentials Graph tokens are **not** valid for `/me`.
+
+### `GET /api/v1/me`
+
+| | |
+|---|---|
+| Method | `GET` |
+| Path | `/api/v1/me` |
+| Headers | `Authorization: Bearer <jwt>` |
+| Body | none |
+
+**200**
+
+```json
+{"id": "...", "name": "Your Name", "email": "you@example.com", "role": "operator"}
+```
+
+**401** — missing or invalid credentials.
+
+### How JWT validation works
+
+- **`app/core/auth.py`** — JWKS from Entra, verify RS256 + `iss` / `aud` / `exp`
+- **`app/api/deps.py`** — resolve `CurrentUser`; create/update `core.users`
 
 ## Notes on current design decisions
 
-**Auth is stubbed.** `app/api/deps.py`'s `get_current_user` always returns
-the single dev user seeded by `scripts/seed_dev_data.py`
-(`APP_DEV_USER_ID` in `.env`), not a real authenticated identity. Real
-Entra ID JWT validation replaces this later — every route already depends
-on `get_current_user`, so only that function's body will need to change.
+**Auth is Entra ID JWT.** The old `APP_DEV_USER_ID` stub is unused by the live
+auth path; it remains only for seed scripts.
 
 **Schema management has no migration tool yet.** `scripts/apply_schema.py`
-applies `setup.sql` directly via `asyncpg`; there's no migration history and
-no `downgrade`. Re-running it against an already-schema'd database will fail
-on `CREATE TABLE`/`CREATE SCHEMA` — for now, drop and recreate the database
-to reset. Alembic (or similar) is worth reintroducing once there's an actual
-second schema version to manage.
+applies `setup.sql` directly via `asyncpg`. Re-running against an already-
+schema'd database will fail — drop/recreate to reset until Alembic lands.
 
-**`/api/v1` prefix.** Matches the API spec's documented base path, and
-leaves room for a `v2` later without breaking existing clients.
+**`/api/v1` prefix.** Matches the API spec; leaves room for a `v2` later.
 
-**Only `User` and `Domain` are modeled as SQLAlchemy ORM classes.** The rest
-of `setup.sql`'s tables (studies, messages, avatars, runs, ...) get a model
-each as their verticals are built out.
+**Only `User` and `Domain` are modeled as SQLAlchemy ORM classes** so far.
 
-See the [repo-root README](../../README.md) for how this app fits into the
-rest of the monorepo, branch naming, and CI.
+See the [repo-root README](../../README.md) for monorepo layout, branch naming,
+and CI.
