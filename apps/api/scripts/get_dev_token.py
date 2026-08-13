@@ -16,6 +16,7 @@ Or open http://localhost:8000/docs → Authorize → paste the token.
 from __future__ import annotations
 
 import base64
+import binascii
 import json
 import os
 import sys
@@ -47,7 +48,7 @@ def _decode_claims(token: str) -> dict:
         payload = token.split(".")[1]
         padding = "=" * (-len(payload) % 4)
         return json.loads(base64.urlsafe_b64decode(payload + padding))
-    except Exception:
+    except (IndexError, ValueError, json.JSONDecodeError, binascii.Error):
         return {}
 
 
@@ -133,7 +134,7 @@ def main() -> None:
     print("──────────────────────────")
     print()
     print("Test:")
-    print(f'  curl -H "Authorization: Bearer <token>" http://localhost:8000/api/v1/me')
+    print('  curl -H "Authorization: Bearer <token>" http://localhost:8000/api/v1/me')
     print("Or: http://localhost:8000/docs → Authorize → Bearer <token>")
 
 

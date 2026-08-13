@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, status
@@ -105,7 +105,7 @@ async def get_current_user(
     )
     user: User | None = result.scalar_one_or_none()
 
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
 
     if user is None:
         # 5. JIT-provision: first login → create the user row
