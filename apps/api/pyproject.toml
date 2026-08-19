@@ -2,7 +2,7 @@
 name = "digital-twin-api"
 version = "0.1.0"
 description = "FastAPI backend for the Digital Twin platform."
-requires-python = ">=3.11"
+requires-python = ">=3.14"
 dependencies = [
     "temporalio>=1.7",
     "fastapi>=0.115",
@@ -15,6 +15,7 @@ dependencies = [
     # Auth — Entra ID JWT validation (JWKS + RS256)
     "PyJWT[crypto]>=2.9",
     "cryptography>=43",
+    "python-dotenv>=1.0.1",
 ]
 
 [project.optional-dependencies]

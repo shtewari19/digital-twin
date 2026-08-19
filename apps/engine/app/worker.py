@@ -11,7 +11,9 @@ from temporalio.worker import Worker
 
 from app.workflows.study_run import StudyRunWorkflow
 
-load_dotenv()
+for env_file in Path(__file__).resolve().parents[3].rglob(".env"):
+    load_dotenv(env_file)
+    break
 
 log = logging.getLogger("engine.worker")
 
