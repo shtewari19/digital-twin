@@ -86,6 +86,23 @@ scripts/
 pyproject.toml
 ```
 
+## Setup Prism
+Requires **Node 22**. Run the commands below to set up, launch, and test the mock server:
+```bash
+# Set Node version
+nvm install 22 && nvm use 22
+
+# Install Prism CLI
+npm install --save-dev @stoplight/prism-cli@latest
+
+# Start mock API & Prism server
+npm run mock:api
+npx prism mock openapi-test.yaml -p 4010
+
+# Test endpoint
+curl http://localhost:4010/api/v1/domains
+```
+
 Shared monorepo code lives in [`../../utility`](../../utility) (logging today).
 
 ## Microsoft Entra ID (Azure AD) — local setup
