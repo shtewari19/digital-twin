@@ -1,6 +1,7 @@
 """Workflow definitions for study run orchestration."""
 
 from temporalio import workflow
+import asyncio
 
 
 @workflow.defn(name="study_run_workflow")
@@ -15,5 +16,6 @@ class StudyRunWorkflow:
     @workflow.run
     async def run(self, study_id: str) -> None:
         workflow.logger.info("study_run_workflow started study_id=%s", study_id)
+        await asyncio.sleep(30)
         workflow.logger.info("study_run_workflow completed study_id=%s", study_id)
         return

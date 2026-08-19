@@ -46,7 +46,7 @@ async def start_run(run_id: uuid.UUID, db: AsyncSession = Depends(get_db)) -> Ru
         STUDY_RUN_WORKFLOW_NAME,
         str(run.study_id),
         id=workflow_id,
-        task_queue=settings.TEMPORAL_TASK_QUEUE_STUDY_RUNS,
+        task_queue=settings.task_queue,
     )
 
     run.status = RunStatus.RUNNING

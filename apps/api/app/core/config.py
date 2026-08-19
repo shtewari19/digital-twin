@@ -24,16 +24,18 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    postgres_user: str = "nms3"
-    postgres_password: str = "root"
-    postgres_host: str = "localhost"
-    postgres_port: int = 5433
-    postgres_db: str = "chorus"
+    postgres_user: str
+    postgres_password: str
+    postgres_host: str
+    postgres_port: int
+    postgres_db: str
 
-    TEMPORAL_HOST: str = "localhost:7233"
-    TEMPORAL_NAMESPACE: str = "default"
-    TEMPORAL_TASK_QUEUE_STUDY_RUNS: str = "study-runs"
+    temporal_host: str
+    temporal_namespace: str
+    task_queue: str
 
+    temporal_cors_origins: str
+    
     dev_user_id: UUID = UUID("00000000-0000-0000-0000-000000000001")
 
     # ---------------------------------------------------------------------------
