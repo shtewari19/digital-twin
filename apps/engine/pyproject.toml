@@ -21,3 +21,8 @@ include = ["engine*"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.16.3",
+]

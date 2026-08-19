@@ -1,12 +1,10 @@
 """Aggregates every `/api/v1` resource router."""
 
 from __future__ import annotations
-from app.api.v1 import domains, runs
-
 
 from fastapi import APIRouter
 
-from app.api.v1 import domains, me
+from app.api.v1 import domains, me, runs
 
 router = APIRouter(prefix="/api/v1")
 router.include_router(domains.router)

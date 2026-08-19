@@ -3,12 +3,12 @@
 import enum
 import uuid
 from datetime import datetime
+from typing import ClassVar
 
-from sqlalchemy import Enum, ForeignKey, String, func
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Enum, String, func
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from sqlalchemy.dialects.postgresql import UUID, JSONB
 from app.db.base import Base
 
 
@@ -32,7 +32,7 @@ class RunStatus(str, enum.Enum):
 
 class Run(Base):
     __tablename__ = "runs"
-    __table_args__ = {"schema": "runs"}  # table lives in the `runs` schema, not `core` or public
+    __table_args__: ClassVar[dict] = {"schema": "runs"}
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tenant_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)

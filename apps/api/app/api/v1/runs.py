@@ -3,13 +3,14 @@
 import asyncio
 import logging
 import uuid
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
-from app.core.temporal import get_temporal_client, STUDY_RUN_WORKFLOW_NAME
 from app.core.config import settings
+from app.core.temporal import STUDY_RUN_WORKFLOW_NAME, get_temporal_client
 from app.db.models.run import Run, RunStatus
 from app.db.session import SessionLocal
 from app.schemas.run import RunOut
@@ -19,7 +20,10 @@ log = logging.getLogger("api.runs")
 
 
 @router.post("/studies/{study_id}/runs", response_model=RunOut, status_code=201)
-async def create_run(study_id: uuid.UUID, db: AsyncSession = Depends(get_db)) -> Run:
+async def create_run(
+    study_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> Run:
     run = Run(study_id=study_id, status=RunStatus.DRAFT)
     db.add(run)
     await db.commit()
@@ -29,7 +33,7 @@ async def create_run(study_id: uuid.UUID, db: AsyncSession = Depends(get_db)) ->
 
 
 @router.post("/runs/{run_id}/start", response_model=RunOut)
-async def start_run(run_id: uuid.UUID, db: AsyncSession = Depends(get_db)) -> Run:
+async def start_run(run_id: uuid.UUID, db: Annotated[AsyncSession, Depends(get_db)]) -> Run:
     run = await db.get(Run, run_id)
     if run is None:
         raise HTTPException(status_code=404, detail="run not found")
