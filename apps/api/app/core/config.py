@@ -24,12 +24,18 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    postgres_user: str = "core_api"
-    postgres_password: str = "dev_password"
-    postgres_host: str = "localhost"
-    postgres_port: int = 5432
-    postgres_db: str = "core_api"
+    postgres_user: str
+    postgres_password: str
+    postgres_host: str
+    postgres_port: int
+    postgres_db: str
 
+    temporal_host: str
+    temporal_namespace: str
+    task_queue: str
+
+    temporal_cors_origins: str
+    
     dev_user_id: UUID = UUID("00000000-0000-0000-0000-000000000001")
 
     # ---------------------------------------------------------------------------
