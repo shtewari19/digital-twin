@@ -47,8 +47,4 @@ target-version = "py311"
 [dependency-groups]
 dev = [
     "ruff>=0.16.2",
-<<<<<<< HEAD
 ]
-=======
-]
->>>>>>> 59479ee (pushing code for litellm and langfuse)
