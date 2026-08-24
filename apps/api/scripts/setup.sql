@@ -377,3 +377,4 @@ CREATE TRIGGER trg_audit_updated           BEFORE UPDATE ON platform.audit_log  
 --   ('IT & Enterprise Software',  'predefined', 'IT buyer messaging'),
 --   ('Financial Services',        'predefined', 'Consumer & SMB messaging'),
 --   ('Consumer / CPG & Retail',   'predefined', 'Shopper messaging');
+

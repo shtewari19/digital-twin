@@ -13,9 +13,16 @@ from app.core.logging import configure_logging
 
 # Initialise logging before any module-level logger calls fire.
 configure_logging()
+from app.core.temporal import init_temporal_client
 
 app = FastAPI(title="Core API", version="0.1.0")
+
 app.include_router(v1_router)
+
+
+@app.on_event("startup")
+async def startup() -> None:
+    await init_temporal_client()
 
 
 @app.get("/health", tags=["health"])

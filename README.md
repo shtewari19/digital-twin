@@ -64,3 +64,7 @@ npm) plus the GitHub Actions used in CI.
 **Code ownership** ([`.github/CODEOWNERS`](.github/CODEOWNERS)) currently
 assigns `@shtewari19` as the global fallback reviewer — split it per
 `apps/*` path once there are GitHub handles for each team to assign.
+
+## Temporal
+
+Temporal is used to orchestrate study runs asynchronously. The API submits a study run to Temporal, and the Python worker listens on the `study-runs` task queue and executes the `study_run_workflow`. For local development, Temporal Server and the Temporal UI are started through Docker Compose, with the server available at `localhost:7233` and the UI at `http://localhost:8080`. The Temporal host, namespace, and task queue are configured through the `.env` file using `APP_TEMPORAL_HOST`, `APP_TEMPORAL_NAMESPACE`, and `APP_TASK_QUEUE`. The worker can be started with `python -m app.worker` from `apps/engine`. The current workflow is a no-op workflow used to verify the complete API → Temporal → Worker flow.
