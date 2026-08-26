@@ -88,7 +88,13 @@ class FakeTemporalClient:
         self.started: list[dict[str, Any]] = []
 
     async def start_workflow(
-        self, name: str, arg: Any, *, id: str, task_queue: str, **kwargs: Any
+        self,
+        name: str,
+        arg: Any,
+        *,
+        id: str,
+        task_queue: str,
+        **kwargs: Any,
     ) -> None:
         self.started.append({"name": name, "arg": arg, "id": id, "task_queue": task_queue})
 

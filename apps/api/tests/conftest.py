@@ -40,7 +40,7 @@ from app.api.deps import get_current_user
 from app.db.models.user import User
 
 
-@pytest.fixture()
+@pytest.fixture
 def app():
     """The FastAPI application under test."""
     from app.main import app as fastapi_app
@@ -48,7 +48,7 @@ def app():
     return fastapi_app
 
 
-@pytest.fixture()
+@pytest.fixture
 def client(app):
     """Synchronous TestClient.
 
@@ -70,7 +70,7 @@ def _never_touch_real_services(app, monkeypatch):
     app.dependency_overrides.clear()
 
 
-@pytest.fixture()
+@pytest.fixture
 def current_user(app):
     """Stub authentication: protected routes see this JIT-style User row."""
     user = User(

@@ -36,12 +36,12 @@ class _FakeJWKClient:
         return _FakeSigningKey(self._key)  # type: ignore[arg-type]
 
 
-@pytest.fixture()
+@pytest.fixture
 def private_key() -> rsa.RSAPrivateKey:
     return rsa.generate_private_key(public_exponent=65537, key_size=2048)
 
 
-@pytest.fixture()
+@pytest.fixture
 def use_fake_jwks(monkeypatch, private_key):
     """Route validate_token at a JWKS client holding our public key."""
     client = _FakeJWKClient(private_key.public_key())

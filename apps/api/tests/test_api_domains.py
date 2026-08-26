@@ -40,7 +40,8 @@ def _install_rows(app, rows: list[DomainRow]) -> list[DomainRow]:
 
 def test_list_domains_returns_rows_in_query_order(client, app, current_user):
     rows = _install_rows(
-        app, [_domain_row("oldest", 30), _domain_row("middle", 20), _domain_row("newest", 10)]
+        app,
+        [_domain_row("oldest", 30), _domain_row("middle", 20), _domain_row("newest", 10)],
     )
 
     response = client.get("/api/v1/domains")

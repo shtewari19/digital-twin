@@ -1,7 +1,7 @@
 # Core API — Pytest Suite Documentation
 
 > **Location:** `apps/api/tests/`
-> **Suite size:** 58 tests across 9 test files · **Line coverage:** 100% · **Runtime:** < 1 s · **External services needed:** none
+> **Suite size:** 122 tests across 16 test files · **Line coverage:** 100% · **Runtime:** < 10 s · **External services needed:** none
 
 This document describes every application module covered by the pytest suite under
 `apps/api/tests/`, what each test verifies, how the hermetic test infrastructure works,
@@ -15,9 +15,10 @@ and how to run the suite manually.
 2. [Directory Layout](#2-directory-layout)
 3. [Coverage Detail — What Is Tested Where](#3-coverage-detail--what-is-tested-where)
 4. [Test Infrastructure](#4-test-infrastructure)
-5. [How to Run the Tests Manually](#5-how-to-run-the-tests-manually)
-6. [CI Integration](#6-ci-integration)
-7. [Known Limitations](#7-known-limitations)
+5. [Mocking Techniques & What Is Mocked Where](#5-mocking-techniques--what-is-mocked-where)
+6. [How to Run the Tests Manually](#6-how-to-run-the-tests-manually)
+7. [CI Integration](#7-ci-integration)
+8. [Known Limitations](#8-known-limitations)
 
 ---
 
@@ -27,7 +28,7 @@ The suite tests the FastAPI backend (`apps/api/app/`) at two levels:
 
 | Level | What | How |
 |---|---|---|
-| **Unit** | Pure logic modules (config, pagination, JWT auth, Temporal holder) | Direct function calls |
+| **Unit** | Pure logic modules (config, pagination, JWT auth, Temporal holder, LLM client, DB models, schemas) | Direct function calls |
 | **Contract** | HTTP endpoints (`/health`, `/me`, `/domains`, `/runs`) | `fastapi.testclient.TestClient` with dependency overrides |
 
 Three deliberate design decisions make the suite **hermetic** (no Postgres,
@@ -63,7 +64,12 @@ apps/api/
     ├── test_api_health.py      #      ( 2 tests)
     ├── test_api_me.py          #      ( 2 tests)
     ├── test_api_domains.py     #      ( 8 tests)
-    └── test_api_runs.py        #      ( 7 tests)
+    ├── test_api_runs.py        #      ( 7 tests)
+    ├── test_llm_client.py      #      (18 tests)
+    ├── test_schemas.py         #      (28 tests)
+    ├── test_db_models.py       #      (14 tests)
+    ├── test_db_session.py      #      ( 2 tests)
+    └── test_logging.py         #      ( 2 tests)
 ```
 
 **Coverage summary**
@@ -79,11 +85,15 @@ apps/api/
 | `app/api/v1/me.py` | `test_api_me.py` | 2 |
 | `app/api/v1/domains.py` | `test_api_domains.py` | 8 |
 | `app/api/v1/runs.py` | `test_api_runs.py` | 7 |
-| **Total** | | **58** |
+| `app/llm/llm_client.py` | `test_llm_client.py` | 18 |
+| `app/schemas/*` | `test_schemas.py` | 28 |
+| `app/db/models/*` | `test_db_models.py` | 14 |
+| `app/db/session.py` | `test_db_session.py` | 2 |
+| `app/core/logging.py` | `test_logging.py` | 2 |
+| **Total** | | **122** |
 
-Not covered by design: `scripts/` (seed/dev helper scripts), `app/db/session.py`
-(thin engine wiring), `app/db/base.py`, `app/core/logging.py`, and schema modules
-(`app/schemas/*`) beyond their incidental exercise through endpoint responses.
+Not covered by design: `scripts/` (seed/dev helper scripts), `app/db/base.py`
+(trivial declarative base), and `app/llm/llm_call.py` (CLI harness script).
 
 ---
 
@@ -217,6 +227,142 @@ keyset filter itself is out of scope (see §7); what is verified:
 | `test_finalize_marks_success_when_workflow_succeeds` | Workflow completes → run status `finalized`, one commit. |
 | `test_finalize_marks_failure_when_workflow_raises` | Workflow raises → run status `failed`, one commit. |
 
+### 3.10 `app/llm/llm_client.py` — tested by `test_llm_client.py`
+
+Covers the LiteLLM wrapper, provider key resolution, and error-handling branches.
+All tests monkeypatch `litellm.completion` and `os.getenv` so no real LLM calls are made.
+
+*API key resolution (`_get_default_api_key`)*
+
+| Test | Verifies |
+|---|---|
+| `test_anthropic` | Returns `ANTHROPIC_API_KEY` for `anthropic/*` models. |
+| `test_openai` | Returns `OPENAI_API_KEY` for `openai/*` models. |
+| `test_azure` | Returns `AZURE_OPENAI_API_KEY` for `azure/*` models. |
+| `test_unknown_provider_returns_none` | `local/llama` → `None` (no key configured). |
+| `test_env_not_set_returns_none` | Missing env var → `None` (no crash). |
+
+*Happy path (`call_llm`)*
+
+| Test | Verifies |
+|---|---|
+| `test_returns_content` | Mocked completion returns the LLM response string. |
+| `test_uses_explicit_api_key_over_env` | Explicit `api_key` param wins over environment variable. |
+| `test_azure_sets_api_base_and_version` | Azure models pass `api_base` and `api_version` to `litellm.completion`. |
+
+*Error paths (`call_llm`)*
+
+| Test | Verifies |
+|---|---|
+| `test_rejects_empty_prompt` | Empty string → `ValueError("Prompt cannot be empty.")`. |
+| `test_rejects_whitespace_prompt` | Whitespace-only string → same `ValueError`. |
+| `test_raises_when_no_api_key` | No env var + no explicit key → `LLMProviderError("No API key configured")`. |
+| `test_raises_rate_limit_error` | `litellm.RateLimitError` → `LLMRateLimitError`. |
+| `test_raises_timeout_error` | `litellm.Timeout` → `LLMTimeoutError`. |
+| `test_raises_provider_error_on_generic_exception` | Any `Exception` → `LLMProviderError`. |
+| `test_raises_on_empty_response_content` | Response with `content=None` → `LLMProviderError("Empty response")`. |
+
+*Exception hierarchy*
+
+| Test | Verifies |
+|---|---|
+| `test_rate_limit_is_llm_error` | `LLMRateLimitError` subclasses `LLMError`. |
+| `test_timeout_is_llm_error` | `LLMTimeoutError` subclasses `LLMError`. |
+| `test_provider_is_llm_error` | `LLMProviderError` subclasses `LLMError`. |
+
+### 3.11 `app/schemas/*` — tested by `test_schemas.py`
+
+Validates Pydantic schema defaults, enum values, alias handling, and `from_attributes`
+round-trips across all four schema modules.
+
+*common.py*
+
+| Test | Verifies |
+|---|---|
+| `test_defaults` | `Problem()` has `type="about:blank"`, all optional fields `None`. |
+| `test_with_values` | `Problem(status=404, detail="No study")` stores values. |
+| `test_generic_structure` | `Page[Domain]` has `data`, `next_cursor`, `has_more`. |
+| `test_has_data_and_meta` | `Page` with data and cursor round-trips correctly. |
+| `test_from_attributes` | `Timestamps.model_validate(mock_row)` reads `created_at`/`updated_at`. |
+| `test_enum_values` | `Priority.HIGH == "high"`, `MEDIUM == "medium"`, `LOW == "low"`. |
+
+*core.py enums*
+
+| Test | Verifies |
+|---|---|
+| `test_values` (DomainType) | `PREDEFINED == "predefined"`, `CUSTOM == "custom"`. |
+| `test_values` (StudyStatus) | `DRAFT == "draft"`, `READY == "ready"`, `ARCHIVED == "archived"`. |
+| `test_values` (IngestStatus) | All 4 values: `pending`, `processing`, `ready`, `failed`. |
+| `test_values` (AvatarScope) | `LIBRARY == "library"`, `STUDY == "study"`. |
+| `test_values` (AvatarSource) | `PREBUILT`, `CUSTOM`, `LLM_ASSISTED`. |
+
+*core.py schemas*
+
+| Test | Verifies |
+|---|---|
+| `test_from_attributes` (Domain) | `Domain.model_validate(mock_row)` round-trips name, type. |
+| `test_domain_list_is_page` | `DomainList` is a `Page[Domain]` subclass. |
+
+*platform.py*
+
+| Test | Verifies |
+|---|---|
+| `test_values` (Role) | `OPERATOR == "operator"`, `ADMIN == "admin"`. |
+| `test_values` (JobKind) | `EXPORT`, `REINDEX`. |
+| `test_values` (JobStatus) | `QUEUED`, `RUNNING`, `SUCCEEDED`, `FAILED`. |
+| `test_values` (ModelType) | `CHAT`, `EMBEDDING`. |
+| `test_rejects_invalid_email` | `User(email="not-an-email")` → `ValidationError`. |
+| `test_accepts_valid_email` | Valid email accepted, role stored. |
+
+*runs.py*
+
+| Test | Verifies |
+|---|---|
+| `test_all_values` (RunStatus) | All 11 status values match DB enum. |
+| `test_model_config_alias` | `RunCreate(model_config={...})` deserializes via alias to `model_settings`. |
+| `test_default_values` (RunCreate) | `model_settings=None`, `repetitions=1`. |
+| `test_schema_matches_db` | Schema `RunStatus` values equal `db.models.run.RunStatus` values. |
+| `test_values` (ExportFormat) | `markdown`, `pdf`, `docx`, `pptx`. |
+| `test_values` (RunEventType) | All 5 event types. |
+| `test_values` (RecommendationTier) | `recommended`, `runner_up`, `drop`. |
+| `test_all_none_by_default` (ModelConfig) | All model fields default to `None`. |
+| `test_minimal` (RunResults) | Empty ranking, null `baseline_lift_pct`. |
+
+### 3.12 `app/db/models/*` — tested by `test_db_models.py`
+
+Verifies ORM model definitions (table names, schemas, defaults) without a live database.
+
+| Test | Verifies |
+|---|---|
+| `test_domain_inherits_base` | `Domain` subclasses `Base`. |
+| `test_run_inherits_base` | `Run` subclasses `Base`. |
+| `test_user_inherits_base` | `User` subclasses `Base`. |
+| `test_tablename` (Domain) | `Domain.__tablename__ == "domains"`. |
+| `test_schema` (Domain) | Table args include `"schema": "core"`. |
+| `test_tablename` (Run) | `Run.__tablename__ == "runs"`. |
+| `test_schema` (Run) | Table args include `"schema": "runs"`. |
+| `test_status_column_default` | `Run.status` column default is `"draft"`. |
+| `test_workflow_id_defaults_none` | `Run(study_id=...).workflow_id` is `None`. |
+| `test_all_members` (RunStatus) | 11 values match the DB CHECK constraint. |
+| `test_is_str_enum` (RunStatus) | `RunStatus.DRAFT == "draft"` (str enum for JSON). |
+| `test_member_count` (RunStatus) | Exactly 11 enum members. |
+| `test_tablename` (User) | `User.__tablename__ == "users"`. |
+| `test_schema` (User) | Table args include `"schema": "core"`. |
+
+### 3.13 `app/db/session.py` — tested by `test_db_session.py`
+
+| Test | Verifies |
+|---|---|
+| `test_uses_asyncpg_driver` | `engine.url.drivername == "postgresql+asyncpg"`. |
+| `test_yields_session` | `get_db()` async generator yields an `AsyncSession`. |
+
+### 3.14 `app/core/logging.py` — tested by `test_logging.py`
+
+| Test | Verifies |
+|---|---|
+| `test_is_importable` | `configure_logging` can be imported and is callable. |
+| `test_repo_root_on_sys_path` | After import, the monorepo root is in `sys.path` for the `utility.logging` import. |
+
 ---
 
 ## 4. Test Infrastructure
@@ -244,7 +390,109 @@ keyset filter itself is out of scope (see §7); what is verified:
 
 ---
 
-## 5. How to Run the Tests Manually
+## 5. Mocking Techniques & What Is Mocked Where
+
+The suite **does not use `unittest.mock`**, `MagicMock`, `patch`, or any third-party
+mocking library. All test doubles are either pytest's built-in `monkeypatch` fixture,
+FastAPI's `dependency_overrides`, or hand-written fake classes in `fakes.py`.
+
+### 5.1 Technique Summary
+
+| Technique | Mechanism | Purpose |
+|---|---|---|
+| **`monkeypatch.setattr`** | Replaces a module-level attribute (function, class, or variable) with a test double for the duration of the test. | Swap out real DB sessions, Temporal clients, LLM backends, and auth validators with controllable fakes. |
+| **`monkeypatch.setenv` / `delenv`** | Sets or removes environment variables for the test scope. | Control API key resolution per LLM provider without touching the real environment. |
+| **FastAPI `dependency_overrides`** | Registers a replacement callable for a FastAPI `Depends()` dependency; cleared automatically by `conftest.py` after each test. | Override `get_db` (database session) and `get_current_user` (auth) at the HTTP layer without touching internal code. |
+| **Hand-written fake classes** (`fakes.py`) | Lightweight in-memory stand-ins that record calls and replay canned data. | Replace DB sessions, Temporal clients, workflow handles, and async task scheduling with deterministic objects. |
+| **Real RSA keypair + fake JWKS** | Tests generate a real RSA key pair, sign tokens with the private key, and feed the public key via a fake JWKS client. | Exercise genuine RS256 signature verification offline without Azure Entra. |
+| **`SimpleNamespace`** | Lightweight `types.SimpleNamespace` objects used as stand-in data containers. | Simulate ORM rows (`from_attributes`) and litellm response objects without importing real models. |
+| **`pytest.mark.parametrize`** | A single test function runs against multiple input variants defined in the `@parametrize` decorator. | Cover malformed cursors, invalid JWT claims, and non-bearer headers in a single definition. |
+
+### 5.2 What Is Mocked in Each Test File
+
+| Test file | What is mocked | How | Why |
+|---|---|---|---|
+| `test_api_health.py` | `app.main.init_temporal_client` | `monkeypatch.setattr` (via autouse `_never_touch_real_services` fixture) → replaced with a no-op async function. | Prevent real Temporal connection during app startup. |
+| `test_api_runs.py` | `app.core.temporal._client` | `monkeypatch.setattr` → `FakeTemporalClient` | Record `start_workflow` calls without a Temporal server. |
+| | `app.api.v1.runs.asyncio` | `monkeypatch.setattr` → `RecordingTaskFactory` | Capture background `create_task` calls for deterministic assertion. |
+| | `app.api.v1.runs.SessionLocal` | `monkeypatch.setattr` → lambda returning `FakeSessionContext` | Replace the real DB session factory with a fake. |
+| | `app.api.deps.get_db` | FastAPI `dependency_overrides` → `FakeAsyncSession` | Inject a fake DB session at the HTTP dependency level. |
+| `test_api_me.py` | `app.api.deps.get_current_user` | FastAPI `dependency_overrides` (via `current_user` fixture) → fake `User` row. | Provide an authenticated user without real JWT validation. |
+| | `app.api.deps.get_db` | FastAPI `dependency_overrides` → `FakeAsyncSession` | Avoid real DB queries. |
+| `test_api_domains.py` | `app.api.deps.get_db` | FastAPI `dependency_overrides` → `FakeAsyncSession(execute_rows=[...])` | Replay a fixed set of `Domain` rows for pagination testing. |
+| | `app.api.deps.get_current_user` | FastAPI `dependency_overrides` (via `current_user` fixture). | Satisfy auth dependency. |
+| `test_auth.py` | `app.core.auth._get_jwks_client` | `monkeypatch.setattr` → `_FakeJWKClient` (holds a real RSA **public** key). | Replace the Azure Entra JWKS endpoint with an offline fake that returns a known key. |
+| | `app.core.auth._jwks_client` | `monkeypatch.setattr(auth, "_jwks_client", None)` | Reset the singleton cache for the JWKS client factory test. |
+| `test_deps.py` | `app.api.deps.validate_token` | `monkeypatch.setattr(deps, "validate_token", stub)` | Return controlled claims dicts or raise `TokenError` without real JWT processing. |
+| `test_temporal.py` | `app.core.temporal._client` | `monkeypatch.setattr` → `_FakeClient` instances. | Test singleton guard and initialization without `temporalio.Client.connect`. |
+| | `app.core.temporal.Client` | `monkeypatch.setattr` → `_ConnectableClient` (captures `connect()` args). | Verify correct host/namespace are passed to Temporal. |
+| `test_llm_client.py` | `app.llm.llm_client.litellm.completion` | `monkeypatch.setattr` → fake functions returning `SimpleNamespace` objects or raising `litellm.RateLimitError` / `litellm.Timeout`. | Test all happy-path and error branches without real LLM API calls. |
+| | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_VERSION` | `monkeypatch.setenv` / `monkeypatch.delenv` | Control which API keys are "set" to test provider resolution logic. |
+| `test_schemas.py` | *(no mocking)* | `SimpleNamespace` used as lightweight stand-in objects for `from_attributes` round-trips. | Not a true mock — just a minimal data container to test Pydantic `model_validate()`. |
+| `test_config.py` | *(no mocking)* | `Settings(_env_file=None, **base)` constructed directly. | Bypass `.env` file loading entirely; test derived properties with controlled inputs. |
+| `test_db_models.py` | *(no mocking)* | Direct inspection of class attributes, `__table_args__`, enum members. | Pure structural tests — no runtime behavior to stub. |
+| `test_db_session.py` | *(no mocking)* | Tests the module-level `engine` object and `get_db` generator shape directly. | Verify static configuration; no DB connection is opened. |
+| `test_pagination.py` | *(no mocking)* | Pure function calls to `encode_cursor` / `decode_cursor`. | Deterministic encode/decode logic needs no fakes. |
+| `test_logging.py` | *(no mocking)* | Import-and-inspect only. | Smoke test — checks importability, not behavior. |
+
+### 5.3 The Fake Classes (from `fakes.py`) — Detailed
+
+These hand-written fakes replace `unittest.mock` objects. They are explicit, typed, and
+record calls for assertion rather than using `assert_called_with` patterns.
+
+#### `FakeAsyncSession` — replaces SQLAlchemy `AsyncSession`
+
+```python
+# Replays canned rows for any SELECT, records mutations
+session = FakeAsyncSession(execute_rows=[row1, row2, row3])
+result = await session.execute(select(Domain))
+# result.scalars().all() returns [row1, row2, row3]
+
+# Inspect what happened
+assert session.commit_count == 1
+assert len(session.added) == 1          # one INSERT
+assert session.refreshed == [inserted_row]
+```
+
+Key behaviors:
+- `execute_rows` → returned by `scalars().all()`
+- `get_result` → returned by `get(model, pk)`
+- Records `added`, `commit_count`, `refreshed`, `last_stmt`, `last_get`
+- `refresh()` fills in a UUID `id` if missing (mirrors `gen_random_uuid()`)
+
+#### `FakeTemporalClient` — replaces `temporalio.Client`
+
+```python
+client = FakeTemporalClient(handle=FakeWorkflowHandle(result_value="done"))
+handle = await client.start_workflow(
+    "study_run_workflow", arg, id="run-123", task_queue="default"
+)
+# client.started_records == [("study_run_workflow", arg, "run-123", "default")]
+# await handle.result() == "done"
+```
+
+Key behaviors:
+- Records every `start_workflow` call in `started_records`
+- Returns a configurable `FakeWorkflowHandle`
+- `FakeWorkflowHandle.result()` either returns a value or raises an exception
+
+#### `RecordingTaskFactory` — replaces `asyncio` module inside `runs.py`
+
+```python
+factory = RecordingTaskFactory()
+# patched in as `runs.asyncio`
+task = factory.create_task(some_coroutine())
+# factory.tasks == [coroutine]  — captured, not scheduled
+factory.close_all()  # prevents "coroutine never awaited" warnings
+```
+
+Key behaviors:
+- Captures coroutines passed to `create_task` without actually scheduling them
+- Enables deterministic assertion of background task scheduling
+
+---
+
+## 6. How to Run the Tests Manually
 
 ### Prerequisites
 
@@ -266,7 +514,7 @@ uv sync            # creates .venv with Python >= 3.14 + dev deps (pytest, ruff,
 All commands below run from `apps/api/`.
 
 ```bash
-# Everything (55 tests, < 1 s)
+# Everything (122 tests, < 10 s)
 uv run pytest
 
 # Verbose: one line per test
@@ -292,6 +540,12 @@ uv run pytest -k "jwt or pagination"
 # Only the HTTP contract tests / only pure unit tests
 uv run pytest tests/test_api_*.py
 uv run pytest --ignore=tests/test_api_health.py -k "not api"
+
+# Only LLM client tests
+uv run pytest tests/test_llm_client.py
+
+# Only schema validation tests
+uv run pytest tests/test_schemas.py
 ```
 
 ### Useful flags
@@ -311,7 +565,7 @@ Coverage tooling isn't part of the default install; run it ad hoc with:
 uv run --with pytest-cov pytest --cov=app --cov-report=term-missing
 ```
 
-**Current result: 100% line coverage (749/749 statements), 58 passed.**
+**Current result: 100% line coverage (749/749 statements), 122 passed.**
 
 | Module | Stmts | Miss | Cover |
 |---|---:|---:|---:|
@@ -335,7 +589,7 @@ Notes on interpreting the number:
 - Schemas and ORM model files are declarative; they hit 100% simply by being imported.
 - The meaningful signal is the hand-written logic modules (`auth`, `deps`, `pagination`,
   `runs`, `domains`, `config`, `temporal`) — each is fully exercised branch-by-branch.
-- Line coverage says nothing about the real SQL filtering (see §7).
+- Line coverage says nothing about the real SQL filtering (see §8).
 
 ### Linting the suite (same as CI)
 
@@ -355,7 +609,7 @@ asyncio_default_fixture_loop_scope = "function"
 
 ---
 
-## 6. CI Integration
+## 7. CI Integration
 
 `.github/workflows/ci-api.yml` lints the app on every push/PR touching `apps/api/**`.
 The pytest suite is designed to slot straight in — append a job like:
@@ -382,7 +636,7 @@ No service containers are needed because the suite is fully hermetic.
 
 ---
 
-## 7. Known Limitations
+## 8. Known Limitations
 
 1. **SQL-side keyset filtering is not exercised.** `FakeAsyncSession` replays a fixed
    row set, so the `tuple_(created_at, id) < (...)` predicate in `list_domains` never
@@ -390,7 +644,9 @@ No service containers are needed because the suite is fully hermetic.
    real Postgres (e.g., docker-compose + a dedicated test database).
 2. **`scripts/` are untested** (`seed_dev_data.py`, `get_dev_token.py`,
    `apply_schema.py`) — they are operational helpers, not application code.
-3. **Pre-existing deprecation warnings surface during runs** (6 warnings): FastAPI's
+3. **`app/llm/llm_call.py` is untested** — it is a CLI harness script, not application
+   logic; it calls `call_llm` directly and would require a live LLM API.
+4. **Pre-existing deprecation warnings surface during runs** (6 warnings): FastAPI's
    deprecated `@app.on_event("startup")` in `app/main.py` and Starlette's deprecated
    `HTTP_422_UNPROCESSABLE_ENTITY` constant in `app/api/v1/domains.py`. They originate
    in application code, not the tests; migrating to a lifespan handler and the
