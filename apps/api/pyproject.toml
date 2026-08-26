@@ -15,12 +15,17 @@ dependencies = [
     # Auth — Entra ID JWT validation (JWKS + RS256)
     "PyJWT[crypto]>=2.9",
     "cryptography>=43",
-    "python-dotenv>=1.0.1",
+	"litellm>=1.97.0",
+    "python-dotenv>=1.2.2",
+    "opentelemetry-api>=1.44.0",
+    "opentelemetry-sdk>=1.44.0",
+    "opentelemetry-exporter-otlp>=1.44.0",
+    "langfuse>=4.14.4",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "ruff>=0.6",
+	"ruff>=0.6",
     "msal>=1.28",  # scripts/get_dev_token.py
 ]
 
