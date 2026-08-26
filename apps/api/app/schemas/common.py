@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from typing import Any, Generic, TypeVar
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -22,8 +22,6 @@ __all__ = [
     "Problem",
     "Timestamps",
 ]
-
-_T = TypeVar("_T", bound=BaseModel)
 
 
 class APIModel(BaseModel):
@@ -92,13 +90,15 @@ class PageMeta(APIModel):
     has_more: bool = False
 
 
-class Page(PageMeta, Generic[_T]):
-    """A cursor-paginated page of `_T` items.
+class Page[T: BaseModel](PageMeta):
+    """A cursor-paginated page of `T` items.
 
     Concrete list schemas (`DomainList`, `StudyList`, `RunList`, ...) are
     aliases of `Page[SomeModel]` instead of hand-written copies of
     PageMeta plus a `data` field, per the doc's repeated
-    "Composition: PageMeta" pattern.
+    "Composition: PageMeta" pattern. PEP 695 type-parameter syntax
+    (`class Page[T: ...]`), not the older `Generic[T]` — safe now that
+    the project floor is Python 3.14.
     """
 
-    data: list[_T] = Field(default_factory=list)
+    data: list[T] = Field(default_factory=list)
