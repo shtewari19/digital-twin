@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from typing import Any, Generic, TypeVar
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -22,8 +22,6 @@ __all__ = [
     "Problem",
     "Timestamps",
 ]
-
-_T = TypeVar("_T", bound=BaseModel)
 
 
 class APIModel(BaseModel):
@@ -92,7 +90,7 @@ class PageMeta(APIModel):
     has_more: bool = False
 
 
-class Page(PageMeta, Generic[_T]):
+class Page[T](PageMeta):
     """A cursor-paginated page of `_T` items.
 
     Concrete list schemas (`DomainList`, `StudyList`, `RunList`, ...) are
@@ -101,4 +99,4 @@ class Page(PageMeta, Generic[_T]):
     "Composition: PageMeta" pattern.
     """
 
-    data: list[_T] = Field(default_factory=list)
+    data: list[T] = Field(default_factory=list)

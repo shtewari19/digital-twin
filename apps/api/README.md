@@ -15,7 +15,7 @@ back a ranked recommendation plus a qualitative report.
 
 ## Requirements
 
-- Python 3.11+
+- Python 3.14+
 - Docker Desktop (for Postgres + Redis — see the repo-root
   [`docker-compose.yml`](../../docker-compose.yml))
 - An Entra ID app registration (tenant id + client id)
