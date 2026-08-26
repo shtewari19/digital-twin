@@ -1,6 +1,5 @@
-"""Endpoints for creating and starting study runs."""
+"""Endpoints for creating, starting, and approving/rejecting study runs."""
 
-import asyncio
 import logging
 import uuid
 from typing import Annotated
@@ -12,7 +11,6 @@ from app.api.deps import get_db
 from app.core.config import settings
 from app.core.temporal import STUDY_RUN_WORKFLOW_NAME, get_temporal_client
 from app.db.models.run import Run, RunStatus
-from app.db.session import SessionLocal
 from app.schemas.run import RunOut
 
 router = APIRouter()
@@ -48,31 +46,62 @@ async def start_run(run_id: uuid.UUID, db: Annotated[AsyncSession, Depends(get_d
     workflow_id = f"study-run-{run_id}"
     await client.start_workflow(
         STUDY_RUN_WORKFLOW_NAME,
-        str(run.study_id),
+        {"run_id": str(run_id), "study_id": str(run.study_id)},
         id=workflow_id,
         task_queue=settings.task_queue,
     )
 
-    run.status = RunStatus.RUNNING
+    # NOTE: no longer set to RUNNING here — the workflow's own first activity
+    # (update_run_status) does that now, so it's true even if the API
+    # process dies the instant after this call returns.
     run.workflow_id = workflow_id
     await db.commit()
     await db.refresh(run)
-    log.info("run %s -> %s (workflow_id=%s)", run_id, RunStatus.RUNNING.value, workflow_id)
-
-    asyncio.create_task(_finalize_when_done(run_id, workflow_id))
+    log.info("run %s submitted to Temporal (workflow_id=%s)", run_id, workflow_id)
     return run
 
 
-async def _finalize_when_done(run_id: uuid.UUID, workflow_id: str) -> None:
-    client = get_temporal_client()
-    handle = client.get_workflow_handle(workflow_id)
-    async with SessionLocal() as db:
-        run = await db.get(Run, run_id)
-        try:
-            await handle.result()
-            run.status = RunStatus.FINALIZED
-            log.info("run %s -> %s", run_id, RunStatus.FINALIZED.value)
-        except Exception:
-            log.exception("run %s failed", run_id)
-            run.status = RunStatus.FAILED
-        await db.commit()
+@router.post("/runs/{run_id}/approve", response_model=RunOut, status_code=202)
+async def approve_run(
+    run_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    note: str | None = None,
+) -> Run:
+    run = await db.get(Run, run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="run not found")
+    if run.status != RunStatus.AWAITING_REVIEW:
+        raise HTTPException(status_code=409, detail=f"run is {run.status.value}, expected awaiting_review")
+
+    handle = get_temporal_client().get_workflow_handle(run.workflow_id)
+    await handle.signal("approve", note)
+    log.info("run %s: approve signal sent", run_id)
+    return run
+
+
+@router.post("/runs/{run_id}/reject", response_model=RunOut, status_code=202)
+async def reject_run(
+    run_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    note: str | None = None,
+) -> Run:
+    run = await db.get(Run, run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="run not found")
+    if run.status != RunStatus.AWAITING_REVIEW:
+        raise HTTPException(status_code=409, detail=f"run is {run.status.value}, expected awaiting_review")
+
+    handle = get_temporal_client().get_workflow_handle(run.workflow_id)
+    await handle.signal("reject", note)
+    log.info("run %s: reject signal sent", run_id)
+    return run
+
+
+@router.get("/runs/{run_id}", response_model=RunOut)
+async def get_run(run_id: uuid.UUID, db: Annotated[AsyncSession, Depends(get_db)]) -> Run:
+    """Not strictly part of this ticket, but you'll want it for testing —
+    lets you poll a run's status via curl instead of only checking the DB."""
+    run = await db.get(Run, run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="run not found")
+    return run
