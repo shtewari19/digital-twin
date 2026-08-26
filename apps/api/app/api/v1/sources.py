@@ -2,13 +2,13 @@
 per-source analysis and per-study sufficiency check.
 
 File bytes are stored in-database (`core.sources.content`) — see
-setup.sql. `GET .../sufficiency` needs an LLM call that doesn't exist yet
-(see `app.core.llm_gateway`); it reports that plainly as a 501 rather
-than faking an answer. The automatic post-upload ingestion pipeline
-(chunk -> embed -> summarize -> tag) also doesn't exist yet — for the
-same reason `POST /knowledgebase/reindex` was held back (see
-`app/api/v1/knowledgebase.py`) — so a freshly uploaded source sits at
-`ingest_status="pending"` and stays there.
+setup.sql. `GET .../sufficiency` calls the LLM gateway (PR #40,
+`app.core.llm_gateway.assess_sufficiency`); a provider failure or a
+malformed response reports as a 502 rather than a crash. The automatic
+post-upload ingestion pipeline (chunk -> embed -> summarize -> tag)
+still doesn't exist — for the same reason `POST /knowledgebase/reindex`
+was held back (see `app/api/v1/knowledgebase.py`) — so a freshly
+uploaded source sits at `ingest_status="pending"` and stays there.
 """
 
 from __future__ import annotations
@@ -19,7 +19,8 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 from sqlalchemy import select
 
 from app.api.deps import CurrentUser, DbSession
-from app.core.llm_gateway import LLMGatewayNotConfiguredError, assess_sufficiency
+from app.core.config import settings
+from app.core.llm_gateway import LLMError, LLMResponseParseError, assess_sufficiency
 from app.db.models.source import Source as SourceRow
 from app.db.models.study import Study as StudyRow
 from app.schemas import Priority, Source, SourceAnalysis, SourceList, SourceUpdate, Sufficiency
@@ -119,10 +120,11 @@ async def get_sufficiency(
     )
     try:
         result = await assess_sufficiency(
-            [{"filename": r.filename, "summary": r.summary or ""} for r in rows]
+            [{"filename": r.filename, "summary": r.summary or ""} for r in rows],
+            model=settings.llm_assist_model,
         )
-    except LLMGatewayNotConfiguredError as exc:
-        raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail=str(exc)) from exc
+    except (LLMError, LLMResponseParseError) as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
     return Sufficiency.model_validate(result)
 
 
