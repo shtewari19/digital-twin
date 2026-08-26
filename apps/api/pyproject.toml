@@ -16,6 +16,10 @@ dependencies = [
     "PyJWT[crypto]>=2.9",
     "cryptography>=43",
     "python-dotenv>=1.0.1",
+    # Knowledgebase vector column (core.source_chunks.embedding) + asyncpg codec.
+    "pgvector>=0.3",
+    # Required by FastAPI's File()/Form()/UploadFile (POST .../sources).
+    "python-multipart>=0.0.9",
 ]
 
 [project.optional-dependencies]
@@ -37,6 +41,22 @@ include = ["app*"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+
+# FastAPI's own DI pattern is `param: T = Query(...)` / `= Depends(...)` —
+# bugbear's B008 otherwise flags these as "function call in argument
+# default" for any non-builtin-scalar annotation (uuid.UUID, our Enums),
+# even though FastAPI itself calls these before each request, safely.
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = [
+    "fastapi.Query",
+    "fastapi.Path",
+    "fastapi.Depends",
+    "fastapi.Body",
+    "fastapi.Header",
+    "fastapi.Cookie",
+    "fastapi.File",
+    "fastapi.Form",
+]
 
 [dependency-groups]
 dev = [
