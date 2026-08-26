@@ -15,11 +15,17 @@ dependencies = [
     # Auth — Entra ID JWT validation (JWKS + RS256)
     "PyJWT[crypto]>=2.9",
     "cryptography>=43",
-    "python-dotenv>=1.0.1",
+    "python-dotenv>=1.2.2",
     # Knowledgebase vector column (core.source_chunks.embedding) + asyncpg codec.
     "pgvector>=0.3",
     # Required by FastAPI's File()/Form()/UploadFile (POST .../sources).
     "python-multipart>=0.0.9",
+    # LiteLLM gateway + Langfuse tracing (see app/llm/).
+    "litellm>=1.97.0",
+    "opentelemetry-api>=1.44.0",
+    "opentelemetry-sdk>=1.44.0",
+    "opentelemetry-exporter-otlp>=1.44.0",
+    "langfuse>=4.14.4",
 ]
 
 [project.optional-dependencies]
@@ -40,7 +46,7 @@ include = ["app*"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py314"
 
 # FastAPI's own DI pattern is `param: T = Query(...)` / `= Depends(...)` —
 # bugbear's B008 otherwise flags these as "function call in argument
