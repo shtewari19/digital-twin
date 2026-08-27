@@ -754,7 +754,7 @@ own pinned Python 3.14 rather than relying on `actions/setup-python`):
     name: Lint (ruff)
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.0.1
         with:
           python-version: "3.14"
           enable-cache: true
@@ -765,7 +765,7 @@ own pinned Python 3.14 rather than relying on `actions/setup-python`):
     name: Test (pytest)
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.0.1
         with:
           python-version: "3.14"
           enable-cache: true
