@@ -47,6 +47,13 @@ class Settings(BaseSettings):
     # Expected `aud` claim in the JWT. Defaults to the client_id.
     entra_audience: str | None = None
 
+    # ---------------------------------------------------------------------------
+    # LLM assist (app/core/llm_gateway.py, app/llm/llm_client.py from PR #40)
+    # ---------------------------------------------------------------------------
+    # A litellm-style "<provider>/<model>" string. Defaults to the one
+    # PR #40 demonstrated working end-to-end (app/llm/llm_call.py).
+    llm_assist_model: str = "azure/gpt-4o-mini"
+
     @property
     def async_database_url(self) -> str:
         """The asyncpg DSN the app's runtime engine connects with."""

@@ -1,7 +1,7 @@
 # Core API — Pytest Suite Documentation
 
 > **Location:** `apps/api/tests/`
-> **Suite size:** 122 tests across 16 test files · **Line coverage:** 100% · **Runtime:** < 10 s · **External services needed:** none
+> **Suite size:** 243 tests across 23 test files · **Line coverage:** 98% (100% outside `domains.py` — see §8) · **Runtime:** < 10 s · **External services needed:** none
 
 This document describes every application module covered by the pytest suite under
 `apps/api/tests/`, what each test verifies, how the hermetic test infrastructure works,
@@ -65,7 +65,14 @@ apps/api/
     ├── test_api_me.py          #      ( 2 tests)
     ├── test_api_domains.py     #      ( 8 tests)
     ├── test_api_runs.py        #      ( 7 tests)
+    ├── test_api_studies.py     #      (28 tests)
+    ├── test_api_messages.py    #      (11 tests)
+    ├── test_api_avatars.py     #      (27 tests)
+    ├── test_api_sources.py     #      (20 tests)
+    ├── test_api_knowledgebase.py #    (12 tests)
+    ├── test_api_llm_assist.py  #      (14 tests)
     ├── test_llm_client.py      #      (18 tests)
+    ├── test_llm_gateway.py     #      ( 9 tests)
     ├── test_schemas.py         #      (28 tests)
     ├── test_db_models.py       #      (14 tests)
     ├── test_db_session.py      #      ( 2 tests)
@@ -85,15 +92,26 @@ apps/api/
 | `app/api/v1/me.py` | `test_api_me.py` | 2 |
 | `app/api/v1/domains.py` | `test_api_domains.py` | 8 |
 | `app/api/v1/runs.py` | `test_api_runs.py` | 7 |
+| `app/api/v1/studies.py` | `test_api_studies.py` | 28 |
+| `app/api/v1/messages.py` | `test_api_messages.py` | 11 |
+| `app/api/v1/avatars.py` | `test_api_avatars.py` | 27 |
+| `app/api/v1/sources.py` | `test_api_sources.py` | 20 |
+| `app/api/v1/knowledgebase.py` | `test_api_knowledgebase.py` | 12 |
+| `app/api/v1/llm_assist.py` | `test_api_llm_assist.py` | 14 |
 | `app/llm/llm_client.py` | `test_llm_client.py` | 18 |
+| `app/core/llm_gateway.py` | `test_llm_gateway.py` | 9 |
 | `app/schemas/*` | `test_schemas.py` | 28 |
 | `app/db/models/*` | `test_db_models.py` | 14 |
 | `app/db/session.py` | `test_db_session.py` | 2 |
 | `app/core/logging.py` | `test_logging.py` | 2 |
-| **Total** | | **122** |
+| **Total** | | **243** |
 
 Not covered by design: `scripts/` (seed/dev helper scripts), `app/db/base.py`
 (trivial declarative base), and `app/llm/llm_call.py` (CLI harness script).
+`app/api/v1/domains.py` is only partially covered (`list_domains` alone,
+55% line coverage) — see §8; it predates the studies/messages/avatars/
+sources/knowledgebase/llm_assist vertical and was never brought up to the
+same bar.
 
 ---
 
@@ -227,7 +245,95 @@ keyset filter itself is out of scope (see §7); what is verified:
 | `test_finalize_marks_success_when_workflow_succeeds` | Workflow completes → run status `finalized`, one commit. |
 | `test_finalize_marks_failure_when_workflow_raises` | Workflow raises → run status `failed`, one commit. |
 
-### 3.10 `app/llm/llm_client.py` — tested by `test_llm_client.py`
+### 3.10 `app/api/v1/studies.py` — tested by `test_api_studies.py`
+
+Studies, plus the `outcome`/`anchors` sub-resources that live as columns/rows
+scoped to a study.
+
+| Group | Verifies |
+|---|---|
+| `GET /studies` | Query order, domain/status filters accepted, cursor round-trip (valid + invalid → 422), limit bounds. |
+| `POST /studies` | Unknown `domain_id` → 422; required `description`; `intent` persisted and round-tripped; owner set from the authenticated user. |
+| `POST /studies` (known gap) | `test_create_study_omitting_name_currently_raises_instead_of_422` — pins that omitting `name` crashes unhandled rather than 422 (see §8). |
+| `GET/PATCH/DELETE /studies/{id}` | 404s; `PATCH` only touches provided fields (`exclude_unset`); `status` transitions serialize correctly and reject invalid values; `DELETE` deletes scoped anchors before the study, and a DB-level conflict (`IntegrityError`) → 409 with rollback. |
+| `GET/PUT /studies/{id}/outcome` | 404; defaults (`dimension=""`, `scale=1..5`) when never set; `PUT` persists both fields; missing `scale` → 422. |
+| `GET/PUT /studies/{id}/anchors` | 404; empty vs. populated sets; `PUT` fully replaces (one DELETE + N adds); malformed body → 422. |
+
+### 3.11 `app/api/v1/messages.py` — tested by `test_api_messages.py`
+
+Candidate messages nested under a study — not paginated (see the module's
+own docstring).
+
+| Group | Verifies |
+|---|---|
+| `GET /studies/{id}/messages` | Study 404; ordering (position, then created_at). |
+| `POST /studies/{id}/messages` | Study 404; `text` required; happy path persists `text`/`group`, `version` starts at 1. |
+| `PATCH .../messages/{id}` | 404 when missing *or* when the message belongs to a different study; `version` increments only when a field actually changes (an empty body does not bump it). |
+| `DELETE .../messages/{id}` | 404; happy path deletes and commits. |
+
+### 3.12 `app/api/v1/avatars.py` — tested by `test_api_avatars.py`
+
+Avatar CRUD plus the per-study `panel` sub-resource.
+
+| Group | Verifies |
+|---|---|
+| `GET /avatars` | Query order; `scope`/`domain_id`/`study_id` filters (individually and combined); invalid `scope` → 422; cursor round-trip (valid + invalid → 422); limit bounds. |
+| `POST /avatars` — scope validation | `library` scope requires (and validates) `domain_id`; `study` scope requires (and validates) `study_id`; defaults to `library`; the non-selected scope's id is dropped on write; `source` defaults to `custom`. |
+| `GET/PATCH/DELETE /avatars/{id}` | Happy path + 404s; `PATCH` is restricted to `name`/`profile` per the API spec; `DELETE` referenced by a panel → 409 via `IntegrityError`. |
+| `GET/PUT /studies/{id}/panel` | Study 404 on both; happy path (`GET` reads the join table, `PUT` replaces it); `avatar_ids` requires ≥1 entry; unknown avatar id → 422. |
+
+### 3.13 `app/api/v1/sources.py` — tested by `test_api_sources.py`
+
+Multipart uploads (files stored in-DB, see the module docstring) plus the
+per-study sufficiency check.
+
+| Group | Verifies |
+|---|---|
+| `GET /studies/{id}/sources` | Study 404; not paginated. |
+| `POST /studies/{id}/sources` | Study 404; a `file` part is required; 413 over the 20 MB cap; `priority` defaults to `medium`, honors an explicit value, rejects an invalid one; missing `content_type` falls back to `application/octet-stream`. |
+| `GET /studies/{id}/sufficiency` | Study 404; `LLMProviderError`/`LLMResponseParseError` from `assess_sufficiency` → 502; happy path passes `{filename, summary}` pairs through and returns the LLM's JSON verbatim. |
+| `GET/PATCH/DELETE /sources/{id}` | 404s; `PATCH` re-prioritizes only, other fields untouched; `DELETE` happy path. |
+| `GET /sources/{id}/analysis` | 404; pending-with-no-tags-yet shape. |
+
+### 3.14 `app/api/v1/knowledgebase.py` — tested by `test_api_knowledgebase.py`
+
+Chunk listing, per-study index status, and semantic search. `POST
+.../reindex` isn't implemented in the app (see the module's own docstring),
+so there's nothing to test for it.
+
+| Group | Verifies |
+|---|---|
+| `GET /sources/{id}/chunks` | Source 404; page shape; cursor round-trip (valid + invalid → 422). |
+| `GET /studies/{id}/knowledgebase` | Study 404; status math across all three states — `pending` (no chunks), `processing` (partially embedded), `ready` (fully embedded) — and `coverage_pct` computed from the embedded/chunk ratio. |
+| `POST .../knowledgebase/search` | Study 404; required `query`; 501 while `embed_texts` is unconfigured (the current, real state); happy-path branch (`embed_texts` mocked) ranks results by cosine distance → `score = 1 - distance`. |
+
+### 3.15 `app/api/v1/llm_assist.py` — tested by `test_api_llm_assist.py`
+
+All four LLM-assisted drafting endpoints. `call_llm_json` (or the route's
+own `_run_assist` wrapper) is monkeypatched at the boundary, so these are
+prompt-wiring/response-shaping/error-translation tests, not LLM integration
+tests — see `test_llm_client.py` / `test_llm_gateway.py` for that layer.
+
+| Group | Verifies |
+|---|---|
+| `POST /llm/assist/study-name` | `description` required; happy path maps the LLM's JSON into `StudyNameSuggestion`; missing `intent` in the response tolerated as `None`; `LLMProviderError`/`LLMResponseParseError` → 502. |
+| `POST /llm/assist/persona` | Unknown `domain_id` → 422; `domain_id` omitted skips the DB lookup entirely; happy path with and without a domain. |
+| `POST /llm/assist/messages` | Study 404; `count` defaults to 5 (asserted in the generated prompt text); a non-list `messages` value in the LLM's response degrades to `[]` rather than crashing. |
+| `POST /llm/assist/anchors` | `scale` required; happy path; a non-list `anchors` value degrades to `[]`. |
+
+### 3.16 `app/core/llm_gateway.py` — tested by `test_llm_gateway.py`
+
+The app's one seam onto LLM calls (see the module's own docstring). Only
+this module's own logic is exercised here — `call_llm` itself (LiteLLM
+plumbing) is `test_llm_client.py`'s job.
+
+| Group | Verifies |
+|---|---|
+| `call_llm_json` | Valid JSON object parses; non-JSON text, a JSON array, and a bare JSON scalar are all rejected as `LLMResponseParseError` (only an object is acceptable); a provider error from `call_llm` propagates unchanged. |
+| `embed_texts` | Still raises `LLMGatewayNotConfiguredError` — pins the current, real "not wired up yet" state. |
+| `assess_sufficiency` | Builds its listing prompt from `{filename, summary}` pairs; handles zero sources and a source with no summary yet (`"(no summary yet)"` / `"(no sources uploaded yet)"` placeholders). |
+
+### 3.17 `app/llm/llm_client.py` — tested by `test_llm_client.py`
 
 Covers the LiteLLM wrapper, provider key resolution, and error-handling branches.
 All tests monkeypatch `litellm.completion` and `os.getenv` so no real LLM calls are made.
@@ -270,7 +376,7 @@ All tests monkeypatch `litellm.completion` and `os.getenv` so no real LLM calls 
 | `test_timeout_is_llm_error` | `LLMTimeoutError` subclasses `LLMError`. |
 | `test_provider_is_llm_error` | `LLMProviderError` subclasses `LLMError`. |
 
-### 3.11 `app/schemas/*` — tested by `test_schemas.py`
+### 3.18 `app/schemas/*` — tested by `test_schemas.py`
 
 Validates Pydantic schema defaults, enum values, alias handling, and `from_attributes`
 round-trips across all four schema modules.
@@ -328,7 +434,7 @@ round-trips across all four schema modules.
 | `test_all_none_by_default` (ModelConfig) | All model fields default to `None`. |
 | `test_minimal` (RunResults) | Empty ranking, null `baseline_lift_pct`. |
 
-### 3.12 `app/db/models/*` — tested by `test_db_models.py`
+### 3.19 `app/db/models/*` — tested by `test_db_models.py`
 
 Verifies ORM model definitions (table names, schemas, defaults) without a live database.
 
@@ -349,14 +455,14 @@ Verifies ORM model definitions (table names, schemas, defaults) without a live d
 | `test_tablename` (User) | `User.__tablename__ == "users"`. |
 | `test_schema` (User) | Table args include `"schema": "core"`. |
 
-### 3.13 `app/db/session.py` — tested by `test_db_session.py`
+### 3.20 `app/db/session.py` — tested by `test_db_session.py`
 
 | Test | Verifies |
 |---|---|
 | `test_uses_asyncpg_driver` | `engine.url.drivername == "postgresql+asyncpg"`. |
 | `test_yields_session` | `get_db()` async generator yields an `AsyncSession`. |
 
-### 3.14 `app/core/logging.py` — tested by `test_logging.py`
+### 3.21 `app/core/logging.py` — tested by `test_logging.py`
 
 | Test | Verifies |
 |---|---|
@@ -382,7 +488,7 @@ Verifies ORM model definitions (table names, schemas, defaults) without a live d
 | Fake | Replaces | Notes |
 |---|---|---|
 | `FakeResult` | SQLAlchemy `Result` | Implements `scalars().all()` and `scalar_one_or_none()`. |
-| `FakeAsyncSession` | `AsyncSession` | Canned results (`execute_rows`, `get_result`) plus call recording (`added`, `commit_count`, `refreshed`, `last_stmt`, `last_get`). Its `refresh()` emulates DB server defaults filling in a missing `id` (mirrors `gen_random_uuid()`). |
+| `FakeAsyncSession` | `AsyncSession` | Canned results — `execute_rows`, `get_result`/`get_results` (sequential, for routes doing more than one `session.get(...)` per request), `scalar_results` (sequential, for routes issuing several `session.scalar(...)` aggregate queries) — plus call recording (`added`, `deleted`, `commit_count`, `rollback_count`, `refreshed`, `last_stmt`, `last_get`, `execute_calls`). `commit_error` makes `commit()` raise once (e.g. `IntegrityError`, for 409-on-delete tests). Its `refresh()` generically emulates a real `INSERT ... RETURNING`: any column still unset on the row is filled from its SQLAlchemy `server_default` (`gen_random_uuid()`, `now()`, string/int/bool literals) or, failing that, its Python-side `default=` (scalar or zero-arg callable) — not just `id`. |
 | `FakeTemporalClient` | `temporalio.Client` | Records `start_workflow(name, arg, id=..., task_queue=...)` calls; hands out handles. |
 | `FakeWorkflowHandle` | `WorkflowHandle` | `result()` either returns normally or raises the configured error — all `_finalize_when_done` needs. |
 | `FakeSessionContext` | `async with SessionLocal()` | Async context manager yielding the fake session. |
@@ -434,6 +540,10 @@ FastAPI's `dependency_overrides`, or hand-written fake classes in `fakes.py`.
 | `test_db_session.py` | *(no mocking)* | Tests the module-level `engine` object and `get_db` generator shape directly. | Verify static configuration; no DB connection is opened. |
 | `test_pagination.py` | *(no mocking)* | Pure function calls to `encode_cursor` / `decode_cursor`. | Deterministic encode/decode logic needs no fakes. |
 | `test_logging.py` | *(no mocking)* | Import-and-inspect only. | Smoke test — checks importability, not behavior. |
+| `test_api_studies.py`, `test_api_messages.py`, `test_api_avatars.py`, `test_api_sources.py`, `test_api_knowledgebase.py` | `app.api.deps.get_db` | FastAPI `dependency_overrides` → `FakeAsyncSession` (various `get_result`/`get_results`/`execute_rows`/`scalar_results`/`commit_error` configs per test). | Avoid real DB queries; simulate 404/409/multi-lookup routes without a schema. |
+| `test_api_sources.py`, `test_api_llm_assist.py` | `app.api.v1.sources.assess_sufficiency` / `app.api.v1.llm_assist.call_llm_json` (or `_run_assist`) | `monkeypatch.setattr` → async fakes returning canned dicts or raising `LLMProviderError`/`LLMResponseParseError`. | Exercise the 502-translation and response-shaping logic without a real LLM call. |
+| `test_api_knowledgebase.py` | `app.api.v1.knowledgebase.embed_texts` | `monkeypatch.setattr` → async fake returning a canned vector. | Exercise the search happy path despite `embed_texts` being unconfigured in the real app. |
+| `test_llm_gateway.py` | `app.core.llm_gateway.call_llm` | `monkeypatch.setattr` → fakes returning canned JSON strings or raising `LLMProviderError`. | Test `call_llm_json`'s JSON-mode parsing and `assess_sufficiency`'s prompt-building without real LLM calls. |
 
 ### 5.3 The Fake Classes (from `fakes.py`) — Detailed
 
@@ -455,10 +565,20 @@ assert session.refreshed == [inserted_row]
 ```
 
 Key behaviors:
-- `execute_rows` → returned by `scalars().all()`
-- `get_result` → returned by `get(model, pk)`
-- Records `added`, `commit_count`, `refreshed`, `last_stmt`, `last_get`
-- `refresh()` fills in a UUID `id` if missing (mirrors `gen_random_uuid()`)
+- `execute_rows` → returned by `scalars().all()` (or `.all()` directly, for
+  routes selecting tuples like `(row, distance)`)
+- `get_result` / `get_results` → returned by `get(model, pk)`; the plural
+  form pops one value per call, for routes doing more than one lookup
+- `scalar_results` → returned by `scalar(stmt)`, popped per call (e.g. a
+  route issuing several `COUNT(*)` queries in sequence)
+- `commit_error` → raised once by `commit()`, then cleared (simulates a
+  DB-level failure like `IntegrityError` surfacing as a 409)
+- Records `added`, `deleted`, `commit_count`, `rollback_count`, `refreshed`,
+  `last_stmt`, `last_get`, `execute_calls`
+- `refresh()` fills in *any* column still unset on the row from its
+  `server_default` (`gen_random_uuid()`, `now()`, literals) or Python-side
+  `default=`, not just `id` — so a freshly-`add()`ed row round-trips the
+  same way it would against a real `INSERT ... RETURNING`
 
 #### `FakeTemporalClient` — replaces `temporalio.Client`
 
@@ -514,7 +634,7 @@ uv sync            # creates .venv with Python >= 3.14 + dev deps (pytest, ruff,
 All commands below run from `apps/api/`.
 
 ```bash
-# Everything (122 tests, < 10 s)
+# Everything (243 tests, < 10 s)
 uv run pytest
 
 # Verbose: one line per test
@@ -565,30 +685,44 @@ Coverage tooling isn't part of the default install; run it ad hoc with:
 uv run --with pytest-cov pytest --cov=app --cov-report=term-missing
 ```
 
-**Current result: 100% line coverage (749/749 statements), 122 passed.**
+**Current result: 98% line coverage (1387/1414 statements), 243 passed.**
 
 | Module | Stmts | Miss | Cover |
 |---|---:|---:|---:|
 | `app/api/deps.py` | 49 | 0 | 100% |
 | `app/api/pagination.py` | 21 | 0 | 100% |
-| `app/api/v1/domains.py` | 22 | 0 | 100% |
+| `app/api/v1/avatars.py` | 95 | 0 | 100% |
+| `app/api/v1/domains.py` | 58 | 26 | 55% |
+| `app/api/v1/knowledgebase.py` | 53 | 0 | 100% |
+| `app/api/v1/llm_assist.py` | 46 | 0 | 100% |
 | `app/api/v1/me.py` | 8 | 0 | 100% |
-| `app/api/v1/router.py` | 8 | 0 | 100% |
+| `app/api/v1/messages.py` | 48 | 0 | 100% |
+| `app/api/v1/router.py` | 13 | 0 | 100% |
 | `app/api/v1/runs.py` | 55 | 0 | 100% |
+| `app/api/v1/sources.py` | 70 | 0 | 100% |
+| `app/api/v1/studies.py` | 93 | 0 | 100% |
 | `app/core/auth.py` | 41 | 0 | 100% |
-| `app/core/config.py` | 31 | 0 | 100% |
+| `app/core/config.py` | 32 | 0 | 100% |
+| `app/core/llm_gateway.py` | 22 | 0 | 100% |
 | `app/core/logging.py` | 8 | 0 | 100% |
 | `app/core/temporal.py` | 11 | 0 | 100% |
-| `app/db/*` (base, models, session) | 91 | 0 | 100% |
+| `app/db/*` (base, models, session) | 240 | 1 | 99% |
+| `app/llm/llm_client.py` | 46 | 0 | 100% |
 | `app/main.py` | 14 | 0 | 100% |
 | `app/schemas/*` (common, core, platform, run, runs) | 390 | 0 | 100% |
-| **TOTAL** | **749** | **0** | **100%** |
+| **TOTAL** | **1414** | **27** | **98%** |
 
 Notes on interpreting the number:
 
 - Schemas and ORM model files are declarative; they hit 100% simply by being imported.
-- The meaningful signal is the hand-written logic modules (`auth`, `deps`, `pagination`,
-  `runs`, `domains`, `config`, `temporal`) — each is fully exercised branch-by-branch.
+- The meaningful signal is the hand-written logic modules — every one of them is at
+  100% except `domains.py` (see below) and one unreachable-without-a-real-connection
+  line in `db/session.py` (the pgvector asyncpg codec registration callback).
+- **`app/api/v1/domains.py` sits at 55%** — `test_api_domains.py` only exercises
+  `list_domains`; `create_domain`/`get_domain`/`update_domain`/`delete_domain` have no
+  tests at all. This predates the studies/messages/avatars/sources/knowledgebase/
+  llm_assist vertical and was never brought up to par — worth a follow-up pass with
+  the same coverage-driven approach used for the newer modules (see §8).
 - Line coverage says nothing about the real SQL filtering (see §8).
 
 ### Linting the suite (same as CI)
@@ -611,44 +745,78 @@ asyncio_default_fixture_loop_scope = "function"
 
 ## 7. CI Integration
 
-`.github/workflows/ci-api.yml` lints the app on every push/PR touching `apps/api/**`.
-The pytest suite is designed to slot straight in — append a job like:
+`.github/workflows/ci-api.yml` runs on every push/PR touching `apps/api/**`, as two
+jobs — both installing via `uv sync --locked` (matching local dev; `uv` provisions its
+own pinned Python 3.14 rather than relying on `actions/setup-python`):
 
 ```yaml
-  test:
-    name: Test (pytest)
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: apps/api
+  lint:
+    name: Lint (ruff)
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@v10.0.1
         with:
           python-version: "3.14"
-      - name: Install
-        run: pip install -e ".[dev]"
-      - name: Run tests
-        run: pytest -q
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv run ruff check .
+
+  test:
+    name: Test (pytest)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          python-version: "3.14"
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv run pytest -q
 ```
 
 No service containers are needed because the suite is fully hermetic.
+
+Historical note: this job previously used `pip install -e ".[dev]"`. That broke
+silently once dev dependencies were consolidated into `[dependency-groups]` (a plain
+`pip install` doesn't read that table, per PEP 735) — `pip` installed zero dev
+dependencies without erroring, so the very next `ruff check .` step failed with
+"command not found." `apps/engine`'s CI had the same latent risk (fixed the same way,
+alongside removing its now-redundant `[project.optional-dependencies]` block).
 
 ---
 
 ## 8. Known Limitations
 
 1. **SQL-side keyset filtering is not exercised.** `FakeAsyncSession` replays a fixed
-   row set, so the `tuple_(created_at, id) < (...)` predicate in `list_domains` never
-   actually filters. Page-2 correctness of that SQL needs an integration test against
-   real Postgres (e.g., docker-compose + a dedicated test database).
-2. **`scripts/` are untested** (`seed_dev_data.py`, `get_dev_token.py`,
+   row set, so the `tuple_(created_at, id) < (...)` predicate in every list endpoint
+   (`list_domains`, `list_studies`, `list_avatars`, `list_chunks`) never actually
+   filters. Page-2 correctness of that SQL needs an integration test against real
+   Postgres (e.g., docker-compose + a dedicated test database).
+2. **`app/api/v1/domains.py` is only 55% covered.** `test_api_domains.py` exercises
+   `list_domains` alone — `create_domain`, `get_domain`, `update_domain`, and
+   `delete_domain` have zero test coverage. This module predates the studies/messages/
+   avatars/sources/knowledgebase/llm_assist vertical (which is otherwise 100% covered)
+   and was never brought up to the same bar. Worth a follow-up pass mirroring
+   `test_api_studies.py`'s / `test_api_avatars.py`'s structure.
+3. **`embed_texts` is a stub**, so knowledgebase search's real embedding call and the
+   pgvector cosine-distance query's behavior against a live index are both untested —
+   `test_api_knowledgebase.py`'s happy-path test mocks `embed_texts` and exercises the
+   ranking/shaping logic around it, not the vector math itself.
+4. **`scripts/` are untested** (`seed_dev_data.py`, `get_dev_token.py`,
    `apply_schema.py`) — they are operational helpers, not application code.
-3. **`app/llm/llm_call.py` is untested** — it is a CLI harness script, not application
+5. **`app/llm/llm_call.py` is untested** — it is a CLI harness script, not application
    logic; it calls `call_llm` directly and would require a live LLM API.
-4. **Pre-existing deprecation warnings surface during runs** (6 warnings): FastAPI's
-   deprecated `@app.on_event("startup")` in `app/main.py` and Starlette's deprecated
-   `HTTP_422_UNPROCESSABLE_ENTITY` constant in `app/api/v1/domains.py`. They originate
-   in application code, not the tests; migrating to a lifespan handler and the
-   `..._CONTENT` constant would silence them.
+6. **A known application bug is pinned, not fixed, by design:**
+   `test_create_study_omitting_name_currently_raises_instead_of_422` in
+   `test_api_studies.py` documents that `POST /studies` crashes unhandled (rather than
+   a clean 422) when `name` is omitted — `StudyCreate.name` is optional on the wire but
+   `core.studies.name` is `NOT NULL`, and nothing auto-generates one. Flip that test's
+   expectation once `create_study` is fixed.
+7. **Pre-existing deprecation warnings surface during runs** (17 warnings, up from 6 as
+   the newer test files hit the same already-deprecated code paths more): FastAPI's
+   deprecated `@app.on_event("startup")` in `app/main.py`, Starlette's deprecated
+   `HTTP_422_UNPROCESSABLE_ENTITY`/`HTTP_413_REQUEST_ENTITY_TOO_LARGE` constants, and
+   `starlette.testclient`'s deprecated reliance on `httpx`. They originate in
+   application code (or the test/HTTP-client versions in use), not the tests
+   themselves; migrating to a lifespan handler and the `..._CONTENT` constants would
+   silence the first two.
 

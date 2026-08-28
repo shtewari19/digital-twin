@@ -1,9 +1,8 @@
 """The shared SQLAlchemy declarative base every ORM model inherits.
 
-Only `core.users` and `core.domains` are modeled so far (see
-`app/db/models/`) — enough for the walking skeleton's dev-user seed and
-`GET /api/v1/domains`. The rest of `setup.sql`'s tables get a model each
-as later verticals (studies, messages, avatars, ...) are built out.
+Every table in setup.sql has a matching model here now except
+`platform.*` (provider keys, jobs, credit ledger, usage events, audit
+log) — none of that vertical is built yet.
 """
 
 from __future__ import annotations
