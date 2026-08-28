@@ -99,7 +99,9 @@ CREATE TABLE core.sources (
     filename           text        NOT NULL,
     content_type       text        NOT NULL,
     size_bytes         bigint      NOT NULL DEFAULT 0,
-    storage_ref        text        NOT NULL,
+    -- Stored in-database rather than in object storage (R2/S3) — a
+    -- deliberate call for now, not the architecture doc's original plan.
+    content            bytea       NOT NULL,
     priority           text        NOT NULL DEFAULT 'medium'
                                      CHECK (priority IN ('high','medium','low')),
     suggested_priority text        CHECK (suggested_priority IN ('high','medium','low')),

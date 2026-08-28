@@ -8,7 +8,47 @@ failure instead of being silently absorbed.
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 from typing import Any
+
+
+def _server_default_value(column: Any) -> Any:
+    """Best-effort Python value for a column's SQLAlchemy `server_default`.
+
+    Only understands the literal forms this app's models actually use
+    (`gen_random_uuid()`, `now()`, and bare string/int/bool literals) —
+    good enough to emulate what a real `INSERT ... RETURNING` would hand
+    back, not a general SQL-expression evaluator.
+    """
+    raw = column.server_default.arg
+    text = str(getattr(raw, "text", raw)).strip("'\"")
+    if text == "gen_random_uuid()":
+        return uuid.uuid4()
+    if "now()" in text:
+        return datetime.now(tz=UTC)
+    try:
+        python_type = column.type.python_type
+    except NotImplementedError:
+        return text
+    if python_type is bool:
+        return text.lower() == "true"
+    if python_type is int:
+        return int(text)
+    return text
+
+
+def _python_default_value(column: Any) -> Any:
+    """Best-effort Python value for a column's SQLAlchemy-side `default=`.
+
+    Covers this app's two shapes: a scalar (`default=RunStatus.DRAFT`) and
+    a zero-argument callable (`default=uuid.uuid4`).
+    """
+    default = column.default
+    if default.is_scalar:
+        return default.arg
+    if default.is_callable:
+        return default.arg({})
+    return None
 
 
 class FakeResult:
@@ -53,19 +93,83 @@ class FakeAsyncSession:
 
     async def get(self, model: Any, pk: Any) -> Any:
         self.last_get = (model, pk)
+        get_results: list[Any] | None = None,
+        scalar_results: list[Any] | None = None,
+        commit_error: Exception | None = None,
+    ) -> None:
+        self.execute_rows = execute_rows or []
+        self.get_result = get_result
+        # For routes that call `session.get(...)` more than once per request
+        # with different expected results (e.g. "does the parent exist" then
+        # "does the child exist"), pop these in call order; falls back to
+        # `get_result` once exhausted (or if never set).
+        self._get_results = list(get_results) if get_results is not None else None
+        # Same idea for `session.scalar(...)` — e.g. a route issuing three
+        # separate aggregate-count queries in sequence.
+        self._scalar_results = list(scalar_results) if scalar_results is not None else None
+        self.commit_error = commit_error
+        self.added: list[Any] = []
+        self.deleted: list[Any] = []
+        self.commit_count = 0
+        self.rollback_count = 0
+        self.refreshed: list[Any] = []
+        self.last_stmt: Any = None
+        self.last_get: tuple[Any, Any] | None = None
+        self.execute_calls: list[Any] = []
+
+    async def execute(self, stmt: Any) -> FakeResult:
+        self.last_stmt = stmt
+        self.execute_calls.append(stmt)
+        return FakeResult(self.execute_rows)
+
+    async def scalar(self, stmt: Any) -> Any:
+        self.last_stmt = stmt
+        self.execute_calls.append(stmt)
+        if self._scalar_results:
+            return self._scalar_results.pop(0)
+        return None
+
+    async def get(self, model: Any, pk: Any) -> Any:
+        self.last_get = (model, pk)
+        if self._get_results is not None:
+            if self._get_results:
+                return self._get_results.pop(0)
+            return self.get_result
         return self.get_result
 
     def add(self, obj: Any) -> None:
         self.added.append(obj)
 
+    async def delete(self, obj: Any) -> None:
+        self.deleted.append(obj)
+
     async def commit(self) -> None:
+        if self.commit_error is not None:
+            error, self.commit_error = self.commit_error, None
+            raise error
         self.commit_count += 1
 
+    async def rollback(self) -> None:
+        self.rollback_count += 1
+
     async def refresh(self, obj: Any) -> None:
-        # Emulate the DB round-trip: columns with server defaults
-        # (e.g. users.id via gen_random_uuid()) come back populated.
-        if getattr(obj, "id", None) is None:
-            obj.id = uuid.uuid4()
+        """Emulate the DB round-trip: any column whose value is still unset
+        on `obj` gets filled from its `server_default` (id via
+        gen_random_uuid(), created_at/updated_at via now(),
+        status/priority/... literals) or, failing that, its Python-side
+        `default=` (e.g. `Run.id`'s `default=uuid.uuid4`) — same as what a
+        real `INSERT ... RETURNING` (or SQLAlchemy's pre-flush default
+        application) would hand back.
+        """
+        table = getattr(type(obj), "__table__", None)
+        if table is not None:
+            for column in table.columns:
+                if getattr(obj, column.name, None) is not None:
+                    continue
+                if column.server_default is not None:
+                    setattr(obj, column.name, _server_default_value(column))
+                elif column.default is not None:
+                    setattr(obj, column.name, _python_default_value(column))
         self.refreshed.append(obj)
 
 

@@ -11,11 +11,6 @@ dependencies = [
     { name = "temporalio" },
 ]
 
-[package.optional-dependencies]
-dev = [
-    { name = "ruff" },
-]
-
 [package.dev-dependencies]
 dev = [
     { name = "ruff" },
@@ -24,10 +19,8 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "python-dotenv", specifier = ">=1.0.1" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.6" },
     { name = "temporalio", specifier = ">=1.7" },
 ]
-provides-extras = ["dev"]
 
 [package.metadata.requires-dev]
 dev = [{ name = "ruff", specifier = ">=0.16.3" }]
