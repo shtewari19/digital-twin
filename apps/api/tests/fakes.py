@@ -78,21 +78,6 @@ class FakeAsyncSession:
         self,
         execute_rows: list[Any] | None = None,
         get_result: Any | None = None,
-    ) -> None:
-        self.execute_rows = execute_rows or []
-        self.get_result = get_result
-        self.added: list[Any] = []
-        self.commit_count = 0
-        self.refreshed: list[Any] = []
-        self.last_stmt: Any = None
-        self.last_get: tuple[Any, Any] | None = None
-
-    async def execute(self, stmt: Any) -> FakeResult:
-        self.last_stmt = stmt
-        return FakeResult(self.execute_rows)
-
-    async def get(self, model: Any, pk: Any) -> Any:
-        self.last_get = (model, pk)
         get_results: list[Any] | None = None,
         scalar_results: list[Any] | None = None,
         commit_error: Exception | None = None,
