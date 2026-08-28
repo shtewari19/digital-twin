@@ -7,7 +7,13 @@ import logging
 from temporalio.client import Client
 from temporalio.worker import Worker
 
-from app.activities import StudyDataActivities, embed_batch, generate_reaction_batch, score_batch
+from app.activities import (
+    StudyDataActivities,
+    apply_penalties_batch,
+    embed_batch,
+    generate_reaction_batch,
+    score_batch,
+)
 from app.config import settings
 from app.db import create_pool
 from app.workflows.study_run import StudyRunWorkflow
@@ -29,9 +35,11 @@ async def main() -> None:
             workflows=[StudyRunWorkflow],
             activities=[
                 embed_batch, score_batch, generate_reaction_batch,   # sync — need the executor
+                apply_penalties_batch,                                # sync — need the executor
                 data_activities.fetch_study_context,                 # async, DB-bound
                 data_activities.persist_reactions,
                 data_activities.rollup_message_results,
+                data_activities.generate_run_report,
                 data_activities.update_run_status,
             ],
             activity_executor=activity_executor,

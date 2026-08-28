@@ -1,0 +1,336 @@
+<div style="font-family:'Segoe UI',system-ui,sans-serif;padding:8px 0 16px;max-width:980px;">
+
+<div style="background:linear-gradient(135deg,#1a1a2e,#2d1b69);border-radius:10px;padding:14px 20px;margin-bottom:16px;">
+  <div style="color:#CC0000;font-size:14px;font-weight:800;">SSR ENGINE — COMPLETE CALCULATION FLOW</div>
+  <div style="color:#c8d4e0;font-size:11px;margin-top:3px;">Every calculation step, in exact order, with the function that runs it</div>
+</div>
+
+<!-- PRE-LOOP: ANCHOR EMBEDDING -->
+<div style="background:white;border:1.5px solid #185FA5;border-radius:10px;overflow:hidden;margin-bottom:10px;">
+  <div style="background:#185FA5;padding:8px 16px;display:flex;justify-content:space-between;align-items:center;">
+    <div style="color:white;font-size:12px;font-weight:800;">PRE-LOOP — Runs ONCE before anything else starts</div>
+    <div style="background:white;color:#185FA5;font-size:9px;font-weight:700;border-radius:3px;padding:2px 8px;">precompute_anchor_embeddings()</div>
+  </div>
+  <div style="padding:10px 16px;display:grid;grid-template-columns:1fr 40px 1fr;gap:8px;align-items:center;">
+    <div style="background:#EBF3FB;border-radius:5px;padding:8px 10px;">
+      <div style="font-size:10px;font-weight:700;color:#0C447C;margin-bottom:3px;">INPUT</div>
+      <div style="font-size:10px;color:#334050;">5 anchor statement strings from Step 7 of Configure tab</div>
+    </div>
+    <div style="text-align:center;font-size:18px;color:#185FA5;">→</div>
+    <div style="background:#EBF3FB;border-radius:5px;padding:8px 10px;">
+      <div style="font-size:10px;font-weight:700;color:#0C447C;margin-bottom:3px;">OUTPUT</div>
+      <div style="font-size:10px;color:#334050;">5 embedding vectors (1536-dimensional each) stored in memory as <code>anchor_vecs</code></div>
+    </div>
+  </div>
+  <div style="background:#D4E8F8;padding:5px 16px;font-size:9px;color:#0C447C;">
+    ⚡ Uses ada-002 via Azure APIM · Runs only once — not per doctor · Saves API cost
+  </div>
+</div>
+
+<div style="text-align:center;font-size:20px;color:#CC0000;margin:4px 0;">↓ Now the main loop begins</div>
+
+<!-- MAIN LOOP HEADER -->
+<div style="background:#CC0000;border-radius:8px;padding:10px 16px;margin-bottom:8px;">
+  <div style="color:white;font-size:12px;font-weight:800;">MAIN LOOP — Repeats for every: Pair × Persona × Respondent</div>
+  <div style="color:#FFD0D0;font-size:10px;margin-top:2px;">Example: 3 claims = 3 pairs · 2 personas · 2 per persona = 12 total iterations (each iteration = steps 1 to 5 below)</div>
+</div>
+
+<!-- STEP 1: LLM RESPONSE -->
+<div style="display:flex;gap:8px;margin-bottom:6px;">
+  <div style="background:#CC0000;color:white;border-radius:8px 0 0 8px;padding:10px 14px;min-width:110px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;">
+    <div style="font-size:22px;font-weight:800;">1</div>
+    <div style="font-size:9px;margin-top:3px;font-weight:600;">LLM Response<br>Generation</div>
+  </div>
+  <div style="flex:1;border:1.5px solid #CC0000;border-left:none;border-radius:0 8px 8px 0;padding:10px 14px;background:white;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">
+      <div style="font-size:11px;font-weight:700;color:#CC0000;">generate_physician_response()</div>
+      <div style="background:#FFF0F0;border:1px solid #CC0000;color:#CC0000;font-size:9px;font-weight:700;border-radius:3px;padding:2px 8px;">1 LLM call per doctor per claim</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;">
+      <div style="background:#FFF0F0;border-radius:4px;padding:6px 8px;">
+        <div style="font-size:9px;font-weight:700;color:#CC0000;">INPUT 1</div>
+        <div style="font-size:9.5px;color:#334050;margin-top:2px;">Persona system prompt<br>(Dr. Sarah Chen etc)</div>
+      </div>
+      <div style="background:#FFF0F0;border-radius:4px;padding:6px 8px;">
+        <div style="font-size:9px;font-weight:700;color:#CC0000;">INPUT 2</div>
+        <div style="font-size:9.5px;color:#334050;margin-top:2px;">Claim text<br>("CAR-T-like efficacy...")</div>
+      </div>
+      <div style="background:#FFF0F0;border-radius:4px;padding:6px 8px;">
+        <div style="font-size:9px;font-weight:700;color:#CC0000;">INPUT 3</div>
+        <div style="font-size:9.5px;color:#334050;margin-top:2px;">KBQ question<br>("How compelling to prescribe?")</div>
+      </div>
+    </div>
+    <div style="margin-top:6px;background:#FCEBEB;border-radius:4px;padding:5px 8px;font-size:9.5px;color:#791F1F;">
+      OUTPUT: Free text paragraph → <em>"This claim about JNJ-5322 sounds promising, especially the high response rate... I'd want to see more real-world safety data..."</em>
+    </div>
+  </div>
+</div>
+<div style="text-align:center;font-size:16px;color:#999;margin:2px 0;">↓</div>
+
+<!-- STEP 2: EMBEDDING -->
+<div style="display:flex;gap:8px;margin-bottom:6px;">
+  <div style="background:#7C3AED;color:white;border-radius:8px 0 0 8px;padding:10px 14px;min-width:110px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;">
+    <div style="font-size:22px;font-weight:800;">2</div>
+    <div style="font-size:9px;margin-top:3px;font-weight:600;">Response<br>Embedding</div>
+  </div>
+  <div style="flex:1;border:1.5px solid #7C3AED;border-left:none;border-radius:0 8px 8px 0;padding:10px 14px;background:white;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">
+      <div style="font-size:11px;font-weight:700;color:#7C3AED;">score_response_vs_anchors() → emb.embed_query()</div>
+      <div style="background:#EEEDFE;border:1px solid #7C3AED;color:#7C3AED;font-size:9px;font-weight:700;border-radius:3px;padding:2px 8px;">ada-002 via APIM</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 40px 1fr;gap:8px;align-items:center;">
+      <div style="background:#EEEDFE;border-radius:4px;padding:6px 8px;font-size:9.5px;color:#334050;">Doctor's free text paragraph</div>
+      <div style="text-align:center;color:#7C3AED;font-size:16px;">→</div>
+      <div style="background:#EEEDFE;border-radius:4px;padding:6px 8px;font-size:9.5px;color:#334050;font-family:monospace;">rvec = [0.023, -0.145, 0.387, ...] <br><span style="color:#888;">1536 numbers representing semantic meaning</span></div>
+    </div>
+  </div>
+</div>
+<div style="text-align:center;font-size:16px;color:#999;margin:2px 0;">↓</div>
+
+<!-- STEP 3: COSINE SIMILARITY -->
+<div style="display:flex;gap:8px;margin-bottom:6px;">
+  <div style="background:#0F6E56;color:white;border-radius:8px 0 0 8px;padding:10px 14px;min-width:110px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;">
+    <div style="font-size:22px;font-weight:800;">3</div>
+    <div style="font-size:9px;margin-top:3px;font-weight:600;">Cosine<br>Similarity</div>
+  </div>
+  <div style="flex:1;border:1.5px solid #0F6E56;border-left:none;border-radius:0 8px 8px 0;padding:10px 14px;background:white;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">
+      <div style="font-size:11px;font-weight:700;color:#0F6E56;">compute_pmf() → cosine_similarity(response_vec, anchor_vec)</div>
+      <div style="background:#E1F5EE;border:1px solid #0F6E56;color:#0F6E56;font-size:9px;font-weight:700;border-radius:3px;padding:2px 8px;">Pure numpy math — no API</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr;gap:4px;margin-bottom:5px;">
+      <div style="background:#E1F5EE;border-radius:4px;padding:5px;text-align:center;">
+        <div style="font-size:9px;color:#0F6E56;font-weight:700;">vs Anchor 1</div>
+        <div style="font-size:13px;font-weight:800;color:#0F6E56;margin-top:2px;">0.840</div>
+        <div style="font-size:8px;color:#888;">extremely<br>compelling</div>
+      </div>
+      <div style="background:#EAF3DE;border:1.5px solid #1E7A4A;border-radius:4px;padding:5px;text-align:center;">
+        <div style="font-size:9px;color:#1E7A4A;font-weight:700;">vs Anchor 2 ★</div>
+        <div style="font-size:13px;font-weight:800;color:#1E7A4A;margin-top:2px;">0.856</div>
+        <div style="font-size:8px;color:#888;">persuasive<br>← HIGHEST</div>
+      </div>
+      <div style="background:#E1F5EE;border-radius:4px;padding:5px;text-align:center;">
+        <div style="font-size:9px;color:#0F6E56;font-weight:700;">vs Anchor 3</div>
+        <div style="font-size:13px;font-weight:800;color:#0F6E56;margin-top:2px;">0.813</div>
+        <div style="font-size:8px;color:#888;">neutral</div>
+      </div>
+      <div style="background:#E1F5EE;border-radius:4px;padding:5px;text-align:center;">
+        <div style="font-size:9px;color:#0F6E56;font-weight:700;">vs Anchor 4</div>
+        <div style="font-size:13px;font-weight:800;color:#0F6E56;margin-top:2px;">0.761</div>
+        <div style="font-size:8px;color:#888;">weak</div>
+      </div>
+      <div style="background:#E1F5EE;border-radius:4px;padding:5px;text-align:center;">
+        <div style="font-size:9px;color:#CC0000;font-weight:700;">vs Anchor 5</div>
+        <div style="font-size:13px;font-weight:800;color:#CC0000;margin-top:2px;">0.747</div>
+        <div style="font-size:8px;color:#888;">not compelling<br>← LOWEST</div>
+      </div>
+    </div>
+    <div style="background:#E1F5EE;border-radius:4px;padding:5px 8px;font-size:9px;color:#085041;">
+      Formula: dot(a,b) / (‖a‖ × ‖b‖) · Score: 0 = completely different · 1 = identical · Result: 5 similarity scores
+    </div>
+  </div>
+</div>
+<div style="text-align:center;font-size:16px;color:#999;margin:2px 0;">↓</div>
+
+<!-- STEP 4: ADJUSTED SCORES -->
+<div style="display:flex;gap:8px;margin-bottom:6px;">
+  <div style="background:#854F0B;color:white;border-radius:8px 0 0 8px;padding:10px 14px;min-width:110px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;">
+    <div style="font-size:22px;font-weight:800;">4</div>
+    <div style="font-size:9px;margin-top:3px;font-weight:600;">Adjusted<br>Scores</div>
+  </div>
+  <div style="flex:1;border:1.5px solid #854F0B;border-left:none;border-radius:0 8px 8px 0;padding:10px 14px;background:white;">
+    <div style="font-size:11px;font-weight:700;color:#854F0B;margin-bottom:5px;">compute_pmf() → adjusted = [s - min_s + delta for s in similarities]</div>
+    <div style="background:#f8f8f8;border-radius:4px;padding:8px;font-size:10px;color:#334050;font-family:monospace;line-height:1.9;">
+      min_s = 0.747 (lowest of the 5 scores) · delta = 0.02 (floor value)<br>
+      a1 = 0.840 - 0.747 + 0.02 = <strong>0.113</strong><br>
+      a2 = 0.856 - 0.747 + 0.02 = <strong>0.129</strong> ← highest<br>
+      a3 = 0.813 - 0.747 + 0.02 = <strong>0.086</strong><br>
+      a4 = 0.761 - 0.747 + 0.02 = <strong>0.034</strong><br>
+      a5 = 0.747 - 0.747 + 0.02 = <strong>0.020</strong> ← floor (never zero)<br>
+      Σa = 0.113 + 0.129 + 0.086 + 0.034 + 0.020 = <strong style="color:#CC0000;">0.382</strong>
+    </div>
+  </div>
+</div>
+<div style="text-align:center;font-size:16px;color:#999;margin:2px 0;">↓</div>
+
+<!-- STEP 5: PMF -->
+<div style="display:flex;gap:8px;margin-bottom:6px;">
+  <div style="background:#185FA5;color:white;border-radius:8px 0 0 8px;padding:10px 14px;min-width:110px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;">
+    <div style="font-size:22px;font-weight:800;">5</div>
+    <div style="font-size:9px;margin-top:3px;font-weight:600;">PMF<br>Normalize</div>
+  </div>
+  <div style="flex:1;border:1.5px solid #185FA5;border-left:none;border-radius:0 8px 8px 0;padding:10px 14px;background:white;">
+    <div style="font-size:11px;font-weight:700;color:#185FA5;margin-bottom:5px;">compute_pmf() → pmf = [a / total for a in adjusted]</div>
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-bottom:5px;">
+      <div style="text-align:center;background:#EBF3FB;border-radius:4px;padding:5px;">
+        <div style="font-size:9px;color:#185FA5;">p1</div>
+        <div style="font-size:12px;font-weight:800;color:#185FA5;">29.6%</div>
+        <div style="font-size:8px;color:#888;">0.113÷0.382</div>
+      </div>
+      <div style="text-align:center;background:#EAF3DE;border-radius:4px;padding:5px;border:1.5px solid #1E7A4A;">
+        <div style="font-size:9px;color:#1E7A4A;">p2 ★</div>
+        <div style="font-size:12px;font-weight:800;color:#1E7A4A;">33.8%</div>
+        <div style="font-size:8px;color:#888;">0.129÷0.382</div>
+      </div>
+      <div style="text-align:center;background:#EBF3FB;border-radius:4px;padding:5px;">
+        <div style="font-size:9px;color:#185FA5;">p3</div>
+        <div style="font-size:12px;font-weight:800;color:#185FA5;">22.4%</div>
+        <div style="font-size:8px;color:#888;">0.086÷0.382</div>
+      </div>
+      <div style="text-align:center;background:#EBF3FB;border-radius:4px;padding:5px;">
+        <div style="font-size:9px;color:#185FA5;">p4</div>
+        <div style="font-size:12px;font-weight:800;color:#185FA5;">8.9%</div>
+        <div style="font-size:8px;color:#888;">0.034÷0.382</div>
+      </div>
+      <div style="text-align:center;background:#EBF3FB;border-radius:4px;padding:5px;">
+        <div style="font-size:9px;color:#185FA5;">p5</div>
+        <div style="font-size:12px;font-weight:800;color:#185FA5;">5.2%</div>
+        <div style="font-size:8px;color:#888;">0.020÷0.382</div>
+      </div>
+    </div>
+    <div style="background:#EBF3FB;border-radius:4px;padding:5px 8px;font-size:9px;color:#0C447C;">
+      All 5 probabilities sum to 100% · This is the probability distribution of which rating this response represents
+    </div>
+  </div>
+</div>
+<div style="text-align:center;font-size:16px;color:#999;margin:2px 0;">↓</div>
+
+<!-- STEP 6: MEAN SSR -->
+<div style="display:flex;gap:8px;margin-bottom:6px;">
+  <div style="background:#CC0000;color:white;border-radius:8px 0 0 8px;padding:10px 14px;min-width:110px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;">
+    <div style="font-size:22px;font-weight:800;">6</div>
+    <div style="font-size:9px;margin-top:3px;font-weight:600;">Mean SSR<br>Score</div>
+  </div>
+  <div style="flex:1;border:1.5px solid #CC0000;border-left:none;border-radius:0 8px 8px 0;padding:10px 14px;background:white;">
+    <div style="font-size:11px;font-weight:700;color:#CC0000;margin-bottom:5px;">compute_pmf() → mean_ssr = sum((k+1) * p for k, p in enumerate(pmf))</div>
+    <div style="background:#f8f8f8;border-radius:4px;padding:8px;font-size:10.5px;color:#334050;font-family:monospace;line-height:2;">
+      μ = 1(0.296) + 2(0.338) + 3(0.224) + 4(0.089) + 5(0.052)<br>
+      μ = 0.296 + 0.676 + 0.672 + 0.356 + 0.260
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;margin-top:6px;">
+      <div style="font-size:11px;color:#334050;">= </div>
+      <div style="background:#CC0000;color:white;font-size:20px;font-weight:800;border-radius:6px;padding:4px 16px;">2.26</div>
+      <div style="font-size:10px;color:#5A6A7A;">Base SSR score · Lower = more compelling · 1=would prescribe · 5=would not</div>
+    </div>
+  </div>
+</div>
+<div style="text-align:center;font-size:16px;color:#999;margin:2px 0;">↓</div>
+
+<!-- STEP 7: PENALTIES -->
+<div style="display:flex;gap:8px;margin-bottom:6px;">
+  <div style="background:#E07B2A;color:white;border-radius:8px 0 0 8px;padding:10px 14px;min-width:110px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;">
+    <div style="font-size:22px;font-weight:800;">7</div>
+    <div style="font-size:9px;margin-top:3px;font-weight:600;">Apply<br>Penalties</div>
+  </div>
+  <div style="flex:1;border:1.5px solid #E07B2A;border-left:none;border-radius:0 8px 8px 0;padding:10px 14px;background:white;">
+    <div style="font-size:11px;font-weight:700;color:#E07B2A;margin-bottom:5px;">apply_penalties(mean_ssr, penalties, resp_text)</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <div style="background:#FEF3E2;border-radius:4px;padding:7px 10px;font-size:9.5px;color:#334050;">
+        <div style="font-weight:700;color:#E07B2A;margin-bottom:3px;">HOW IT WORKS</div>
+        Scans the free-text response for each trigger word:<br><br>
+        <code>if "reimbursement" in response → +0.30</code><br>
+        <code>if "IVIG" in response → +0.25</code><br>
+        <code>if "infection risk" in response → +0.20</code><br>
+        <code>if "tocilizumab" in response → +0.25</code><br>
+        <code>if "CAR-T" in response → +0.15</code>
+      </div>
+      <div>
+        <div style="background:#EAF3DE;border-radius:4px;padding:7px 10px;font-size:9.5px;color:#334050;margin-bottom:5px;">
+          <div style="font-weight:700;color:#1E7A4A;margin-bottom:2px;">Example — No triggers fired (from screenshot)</div>
+          Base SSR: 2.26 + No penalties = <strong>Final SSR: 2.26</strong>
+        </div>
+        <div style="background:#FCEBEB;border-radius:4px;padding:7px 10px;font-size:9.5px;color:#334050;">
+          <div style="font-weight:700;color:#CC0000;margin-bottom:2px;">Example — Triggers fired</div>
+          Base SSR: 2.32 + infection(0.20) + CAR-T(0.15) = <strong>Final SSR: 2.67</strong>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div style="text-align:center;font-size:16px;color:#999;margin:2px 0;">↓</div>
+
+<!-- STEP 8: WINS MATRIX -->
+<div style="display:flex;gap:8px;margin-bottom:8px;">
+  <div style="background:#334050;color:white;border-radius:8px 0 0 8px;padding:10px 14px;min-width:110px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;">
+    <div style="font-size:22px;font-weight:800;">8</div>
+    <div style="font-size:9px;margin-top:3px;font-weight:600;">Compare &<br>Record Win</div>
+  </div>
+  <div style="flex:1;border:1.5px solid #334050;border-left:none;border-radius:0 8px 8px 0;padding:10px 14px;background:white;">
+    <div style="font-size:11px;font-weight:700;color:#334050;margin-bottom:5px;">winner_label = "A" if final_a &lt; final_b else "B" → wins[i][j] += 1</div>
+    <div style="font-size:9.5px;color:#334050;line-height:1.8;margin-bottom:6px;">
+      Compare Claim A's final SSR vs Claim B's final SSR. Lower score = more compelling = WINNER.<br>
+      Winning claim gets +1 in the wins matrix. This repeats for ALL 12 iterations.
+    </div>
+    <div style="background:#f0f4f8;border-radius:4px;padding:7px 10px;font-family:monospace;font-size:9.5px;color:#334050;line-height:1.7;">
+      wins[0][1] = how many times Claim 1 beat Claim 2<br>
+      wins[1][0] = how many times Claim 2 beat Claim 1<br>
+      wins[0][2] = how many times Claim 1 beat Claim 3 ... etc
+    </div>
+  </div>
+</div>
+
+<div style="text-align:center;font-size:14px;color:#888;margin:4px 0;font-style:italic;">↑ Steps 1–8 repeat for every pair × persona × respondent ↑</div>
+<div style="text-align:center;font-size:20px;color:#CC0000;margin:4px 0;">↓ After ALL iterations complete</div>
+
+<!-- POST-LOOP: BRADLEY-TERRY -->
+<div style="background:white;border:1.5px solid #1E7A4A;border-radius:10px;overflow:hidden;margin-bottom:8px;">
+  <div style="background:#1E7A4A;padding:8px 16px;display:flex;justify-content:space-between;align-items:center;">
+    <div style="color:white;font-size:12px;font-weight:800;">POST-LOOP — Runs ONCE after all iterations complete</div>
+    <div style="background:white;color:#1E7A4A;font-size:9px;font-weight:700;border-radius:3px;padding:2px 8px;">bradley_terry(n_claims, wins_matrix)</div>
+  </div>
+  <div style="padding:10px 16px;">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div style="background:#E8F5E9;border-radius:5px;padding:8px 10px;font-size:9.5px;color:#334050;font-family:monospace;line-height:1.8;">
+        strengths = [1.0, 1.0, 1.0]  ← start equal<br>
+        <span style="color:#1E7A4A;">for _ in range(500):  ← 500 iterations</span><br>
+        &nbsp;&nbsp;for each claim i:<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;num = total wins by claim i<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;den = matchups ÷ (strength_i + strength_j)<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;new_strength[i] = num / den<br>
+        &nbsp;&nbsp;normalize → all scores sum to 1.0
+      </div>
+      <div>
+        <div style="background:#E8F5E9;border-radius:5px;padding:8px 10px;margin-bottom:5px;">
+          <div style="font-size:10px;font-weight:700;color:#1E7A4A;margin-bottom:3px;">FINAL BT SCORES (example)</div>
+          <div style="font-size:10px;color:#334050;line-height:2;">
+            🥇 Claim 2: BT = <strong>0.497</strong><br>
+            🥈 Claim 1: BT = <strong>0.310</strong><br>
+            🥉 Claim 3: BT = <strong>0.194</strong><br>
+            <span style="color:#888;">Sum = 0.497+0.310+0.194 = 1.0 ✓</span>
+          </div>
+        </div>
+        <div style="background:#E8F5E9;border-radius:5px;padding:6px 10px;font-size:9px;color:#1E7A4A;">
+          Higher BT score = stronger claim = won more matchups against stronger opponents
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- FINAL AGGREGATION -->
+<div style="background:#0f172a;border-radius:10px;padding:12px 16px;">
+  <div style="color:#CC0000;font-size:11px;font-weight:800;margin-bottom:8px;">FINAL AGGREGATION — Computed immediately after Bradley-Terry</div>
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;">
+    <div style="background:#1e293b;border-radius:6px;padding:8px;">
+      <div style="color:#7dd3fc;font-size:10px;font-weight:700;margin-bottom:3px;">Win Rate %</div>
+      <div style="color:#94a3b8;font-size:9px;line-height:1.7;">total_wins[i] ÷ (wins+losses) × 100<br>Per claim across all matchups</div>
+    </div>
+    <div style="background:#1e293b;border-radius:6px;padding:8px;">
+      <div style="color:#86efac;font-size:10px;font-weight:700;margin-bottom:3px;">Mean SSR per claim</div>
+      <div style="color:#94a3b8;font-size:9px;line-height:1.7;">Average of all final SSR scores for that claim across all doctors and matchups</div>
+    </div>
+    <div style="background:#1e293b;border-radius:6px;padding:8px;">
+      <div style="color:#fde68a;font-size:10px;font-weight:700;margin-bottom:3px;">High Intent %</div>
+      <div style="color:#94a3b8;font-size:9px;line-height:1.7;">(avg_pmf[0] + avg_pmf[1]) × 100<br>% of doctors at Rating 1 or 2</div>
+    </div>
+    <div style="background:#1e293b;border-radius:6px;padding:8px;">
+      <div style="color:#fca5a5;font-size:10px;font-weight:700;margin-bottom:3px;">Cohort Breakdown</div>
+      <div style="color:#94a3b8;font-size:9px;line-height:1.7;">Win rate per claim per persona separately — used for Section 3 of report</div>
+    </div>
+  </div>
+  <div style="margin-top:8px;background:#CC0000;border-radius:6px;padding:6px 12px;font-size:10px;color:white;text-align:center;font-weight:700;">
+    After all this → generate_executive_summary() + generate_interpretation() → 2 more LLM calls → Full report ready
+  </div>
+</div>
+
+</div>

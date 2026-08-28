@@ -11,9 +11,18 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-_ENV_PATH = Path(__file__).resolve().parent.parent / ".env" 
+_ENGINE_ROOT = Path(__file__).resolve().parent.parent
+_ENV_PATH = next(
+    (
+        path
+        for path in (_ENGINE_ROOT / ".env", _ENGINE_ROOT / "engine" / ".env")
+        if path.is_file()
+    ),
+    _ENGINE_ROOT / ".env",
+)
 
 
 class Settings(BaseSettings):
@@ -29,10 +38,27 @@ class Settings(BaseSettings):
     temporal_namespace: str
     task_queue: str
 
-    embedding_model_endpoint: str = "https://ai.questkart.cloud/embeddings"
+    # These four (plus embedding_model_endpoint below) live in
+    # apps/engine/engine/.env WITHOUT the APP_ prefix the class-level
+    # env_prefix applies to everything else — validation_alias opts each one
+    # out individually rather than fighting pydantic-settings' prefix.
+    azure_openai_api_key: str = Field(validation_alias="AZURE_OPENAI_API_KEY")
+    azure_openai_endpoint: str = Field(validation_alias="AZURE_OPENAI_ENDPOINT")
+    azure_openai_deployment: str = Field(
+        default="gpt-4o-mini", validation_alias="AZURE_OPENAI_DEPLOYMENT_NAME"
+    )
+    azure_openai_api_version: str = Field(
+        default="2024-02-15-preview", validation_alias="AZURE_OPENAI_API_VERSION"
+    )
+
+    embedding_model_endpoint: str = Field(
+        default="https://ai.questkart.cloud/embeddings",
+        validation_alias="EMBEDDING_MODEL_ENDPOINT",
+    )
     embedding_batch_size: int = 50
     max_batches_per_run: int = 1000
     approval_timeout_days: int = 7
+    reaction_concurrency: int = 8
 
     @property
     def asyncpg_dsn(self) -> str:

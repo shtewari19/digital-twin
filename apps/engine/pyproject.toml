@@ -11,6 +11,8 @@ dependencies = [
     "requests>=2.31",
     "pydantic>=2.9",
     "pydantic-settings>=2.5",
+    "openai>=1.40",
+    "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]
@@ -21,7 +23,10 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["engine*"]
+# "app*" is where the real code lives (config.py, activities.py, worker.py,
+# workflows/); "engine*" is a leftover placeholder package. Both are included
+# so an actual `pip install -e .` exposes app/, not just the stub.
+include = ["app*", "engine*"]
 
 [tool.ruff]
 line-length = 100
