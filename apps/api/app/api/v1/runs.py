@@ -5,13 +5,17 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
 from app.core.config import settings
 from app.core.temporal import STUDY_RUN_WORKFLOW_NAME, get_temporal_client
+from app.db.models.message import Message
 from app.db.models.run import Run, RunStatus
-from app.schemas.run import RunOut
+from app.db.models.run_message_result import RunMessageResult
+from app.db.models.run_report import RunReport
+from app.schemas.run import RankingEntryOut, RunOut, RunResultsOut
 
 router = APIRouter()
 log = logging.getLogger("api.runs")
@@ -105,3 +109,49 @@ async def get_run(run_id: uuid.UUID, db: Annotated[AsyncSession, Depends(get_db)
     if run is None:
         raise HTTPException(status_code=404, detail="run not found")
     return run
+
+
+@router.get("/runs/{run_id}/results", response_model=RunResultsOut)
+async def get_run_results(
+    run_id: uuid.UUID, db: Annotated[AsyncSession, Depends(get_db)]
+) -> RunResultsOut:
+    """The ranked recommendation + narrative report apps/engine writes
+    (runs.run_message_results, runs.run_reports). Both are empty/null until
+    the run reaches at least awaiting_review — this route doesn't error in
+    that case, it just returns an empty ranking and a null report."""
+    run = await db.get(Run, run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="run not found")
+
+    ranking_rows = (
+        await db.execute(
+            select(RunMessageResult, Message.text)
+            .join(Message, Message.id == RunMessageResult.message_id)
+            .where(RunMessageResult.run_id == run_id)
+            .order_by(RunMessageResult.rank)
+        )
+    ).all()
+
+    report_row = await db.get(RunReport, run_id)
+
+    return RunResultsOut(
+        run_id=run_id,
+        status=run.status,
+        ranking=[
+            RankingEntryOut(
+                message_id=rmr.message_id,
+                text=text,
+                rank=rmr.rank,
+                bt_strength=float(rmr.bt_strength) if rmr.bt_strength is not None else None,
+                aggregate_score=float(rmr.aggregate_score) if rmr.aggregate_score is not None else None,
+                recommendation=rmr.recommendation,
+            )
+            for rmr, text in ranking_rows
+        ],
+        report=report_row.report if report_row else None,
+        baseline_lift_pct=(
+            float(report_row.baseline_lift_pct)
+            if report_row and report_row.baseline_lift_pct is not None
+            else None
+        ),
+    )

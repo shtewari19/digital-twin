@@ -31,7 +31,6 @@ with workflow.unsafe.imports_passed_through():
         generate_reaction_batch,
         score_batch,
     )
-    from app.config import settings
 
 RETRY = RetryPolicy(
     initial_interval=timedelta(seconds=1), backoff_coefficient=2.0,
@@ -193,10 +192,11 @@ class StudyRunWorkflow:
             start_to_close_timeout=timedelta(seconds=15), retry_policy=RETRY,
         )
 
-        await workflow.wait_condition(
-            lambda: self._decision is not None,
-            timeout=timedelta(days=settings.approval_timeout_days),
-        )
+        # Auto-approve — no human review gate. approve()/reject() signals
+        # still work if one happens to arrive before this point, but nothing
+        # blocks waiting for one; the run proceeds straight to finalized.
+        if self._decision is None:
+            self._decision = "approve"
 
         final_status = "finalized" if self._decision == "approve" else "cancelled"
         await workflow.execute_activity(

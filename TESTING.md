@@ -127,18 +127,38 @@ Poll until it stops changing (~30-60s for the small fixture):
 watch -n5 "curl -s http://localhost:8000/api/v1/runs/$RUN_ID | python3 -m json.tool"
 ```
 
-Expected transition: `queued` → `running` → `awaiting_review`.
+Expected transition: `queued` → `running` → `finalized` (auto-approved — see
+below). Only `failed` means something actually broke — check the `error`
+field on the run and the worker log.
 
-**`awaiting_review` with the workflow still showing "Running" in the Temporal
-UI is correct, not stuck.** The pipeline has finished (reactions scored,
-ranked, report written) and is paused at a human-approval gate — it stays
-"Running" in Temporal until someone calls `/approve` or `/reject` (step 6).
-Only `failed` means something actually broke — check the `error` field on the
-run and the worker log.
+**Note on `awaiting_review`:** the workflow briefly passes through this
+status after the report is written, but does not pause there — it
+auto-approves itself and proceeds straight to `finalized` (see
+`StudyRunWorkflow.run` in `apps/engine/app/workflows/study_run.py`). The
+`approve`/`reject` signals and the `/runs/{id}/approve` and `/reject` API
+routes still exist and work — if you send one in the brief window before
+the workflow reaches that point, it wins — but nothing requires you to call
+them, and by the time you poll status it will typically already be
+`finalized`.
 
 ## 5. Verify the actual data (this is the real check)
 
-Status fields alone don't prove correctness — confirm the data:
+Status fields alone don't prove correctness — confirm the data.
+
+The ranking and report are available through the API — no direct DB access
+needed for these two:
+
+```bash
+curl -s http://localhost:8000/api/v1/runs/<run_id>/results | python3 -m json.tool
+```
+
+Returns `status`, the full `ranking` array (per message: `rank`,
+`bt_strength`, `aggregate_score`, `recommendation`), the full Markdown
+`report` (all six sections — Executive Summary, Rankings, Cohort Breakdown +
+stakeholder-alignment check, Interpretation, Penalty Impact Summary,
+Strategic Recommendation), and `baseline_lift_pct`.
+
+Raw reaction rows still need the DB directly:
 
 ```sql
 -- every pair should have a real score, and penalty >= 0 (nonzero when a
@@ -148,35 +168,26 @@ FROM runs.run_reactions WHERE run_id = '<run_id>';
 
 -- reaction text must be real generated prose, not empty/NULL
 SELECT reaction FROM runs.run_reactions WHERE run_id = '<run_id>' LIMIT 1;
-
--- one row per message, ranked by Bradley-Terry strength (not raw average)
-SELECT m.text, rmr.aggregate_score, rmr.bt_strength, rmr.rank, rmr.recommendation
-FROM runs.run_message_results rmr
-JOIN core.messages m ON m.id = rmr.message_id
-WHERE rmr.run_id = '<run_id>'
-ORDER BY rmr.rank;
-
--- narrative report + computed lift, should be several thousand characters
-SELECT baseline_lift_pct, length(report) FROM runs.run_reports WHERE run_id = '<run_id>';
 ```
 
 Checklist — all of these should be true:
 - [ ] Every seeded avatar/message pair has a `run_reactions` row with `status='ok'`
 - [ ] `reaction` text is real, coherent, and reads in the avatar's persona voice
 - [ ] `penalty` is nonzero on reactions whose text mentions a trigger phrase (see `fixtures/scale_test.yaml`), zero otherwise
-- [ ] `run_message_results` has exactly one row per message, `rank` 1..N, `bt_strength` values summing to ~1.0
+- [ ] `/results` → `ranking` has exactly one entry per message, `rank` 1..N, `bt_strength` values summing to ~1.0
 - [ ] Rank 1 has `recommendation = 'recommended'`
-- [ ] `run_reports.report` contains `## Executive Summary` and `## Interpretation` sections referencing the actual winning/losing message text
+- [ ] `/results` → `report` contains all six `##` sections and references the actual winning/losing message text and real persona-family names
 
-## 6. Approve / reject (closes the loop)
+## 6. Manual approve / reject (optional — not required)
+
+The run auto-approves itself and reaches `finalized` on its own (see the note
+in step 4), so you shouldn't normally need this. `/approve` and `/reject`
+still exist for a manual override — mainly useful if you're testing the
+signal path itself, or reintroducing a real review gate later:
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/runs/$RUN_ID/approve
-# run status -> finalized, workflow shows "Completed" in Temporal UI
-
-# or:
 curl -X POST http://localhost:8000/api/v1/runs/$RUN_ID/reject
-# run status -> cancelled
 ```
 
 ## 7. Full-scale run (optional — real cost/time)
@@ -201,5 +212,7 @@ quota allows it.
 | Run fails with `openai.OpenAIError: Missing credentials` | Same as above — worker was started before the key was added; restart it |
 | Worker can't reach Postgres / wrong data appears | `APP_POSTGRES_PORT` doesn't match `docker port digital-twin-postgres-1`, or `apps/api/.env` and `apps/engine/engine/.env` point at different databases |
 | `GET /api/v1/domains` returns nothing / `run not found` | Schema not applied or dev data not seeded — rerun step 1 |
-| Workflow stuck at "Running" in Temporal UI indefinitely | Check `runs.runs.status` first — `awaiting_review` is expected (see step 4); only investigate if it's still `running` with no reactions appearing in `run_reactions` after several minutes |
+| Run stays at `running` for a long time, no rows in `run_reactions` | Something's actually stuck — check the worker log for exceptions, and confirm Azure/embedding endpoints are reachable |
+| Run never leaves `awaiting_review` | Shouldn't happen — the workflow auto-approves itself immediately after writing that status. If it does, check the worker log for an exception between the `generate_run_report` and final `update_run_status` activity calls |
 | `curl` to `localhost:8000` hangs | A stale/zombie uvicorn process is holding the port — `lsof -i :8000` and kill it, then restart |
+| `docker compose up -d` fails to bind Postgres's port | Something else is using host port 5432/5433 already, or the container was recreated without the same `APP_POSTGRES_PORT` env var as before — check `docker port digital-twin-postgres-1` and re-align both `.env` files |

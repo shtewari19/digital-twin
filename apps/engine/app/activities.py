@@ -7,7 +7,7 @@ import json
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 
 import asyncpg
 import numpy as np
@@ -411,18 +411,22 @@ class StudyDataActivities:
 
     @activity.defn
     async def generate_run_report(self, run_id: str) -> None:
-        """Two more LLM calls (executive summary + interpretation), ported
-        from the POC's generate_executive_summary()/generate_interpretation().
-        Runs once, after rollup_message_results has written the ranking."""
+        """Assembles the full report the POC's Results Report tab produced:
+        executive summary, rankings table, cohort breakdown with a
+        stakeholder-alignment check, penalty impact summary, detailed
+        interpretation, and a strategic recommendation. Only the executive
+        summary and interpretation are LLM calls (2 total); everything else
+        is rendered from data already computed by rollup_message_results.
+        Runs once, after that activity has written the ranking."""
         async with self._pool.acquire() as conn:
             study_row = await conn.fetchrow(
-                """SELECT s.outcome_dimension AS kbq
+                """SELECT s.outcome_dimension AS kbq, r.config_snapshot
                    FROM runs.runs r JOIN core.studies s ON s.id = r.study_id
                    WHERE r.id = $1""",
                 run_id,
             )
             ranking_rows = await conn.fetch(
-                """SELECT rmr.rank, rmr.bt_strength, rmr.aggregate_score,
+                """SELECT rmr.rank, rmr.bt_strength, rmr.aggregate_score, rmr.recommendation,
                           m.id AS message_id, m.text AS message_text
                    FROM runs.run_message_results rmr
                    JOIN core.messages m ON m.id = rmr.message_id
@@ -434,12 +438,20 @@ class StudyDataActivities:
                 return
 
             reaction_rows = await conn.fetch(
-                """SELECT rr.avatar_id, rr.message_id, rr.score, a.name AS avatar_name
+                """SELECT rr.avatar_id, rr.message_id, rr.score, rr.reaction, a.name AS avatar_name
                    FROM runs.run_reactions rr
                    JOIN core.avatars a ON a.id = rr.avatar_id
                    WHERE rr.run_id = $1 AND rr.status = 'ok' AND rr.score IS NOT NULL""",
                 run_id,
             )
+
+        config = study_row["config_snapshot"] or {}
+        if isinstance(config, str):
+            config = json.loads(config)
+        penalties = [
+            Penalty(trigger=p["trigger"], adjustment=float(p["adjustment"]), reason=p["reason"])
+            for p in config.get("penalties", [])
+        ]
 
         rankings = [
             {
@@ -447,6 +459,7 @@ class StudyDataActivities:
                 "text": r["message_text"],
                 "bt_strength": float(r["bt_strength"] or 0),
                 "aggregate_score": float(r["aggregate_score"] or 0),
+                "recommendation": r["recommendation"],
             }
             for r in ranking_rows
         ]
@@ -477,6 +490,15 @@ class StudyDataActivities:
                 for i, (mid, score) in enumerate(ordered)
             ]
 
+        # Re-derive which penalties fired per reaction from the stored text —
+        # runs.run_reactions only keeps the summed adjustment, not which
+        # trigger phrases matched, so this is recomputed rather than stored.
+        penalty_hits: dict[str, int] = {}
+        for r in reaction_rows:
+            _, _, triggered = _apply_penalties(0.0, penalties, r["reaction"] or "")
+            for reason in triggered:
+                penalty_hits[reason] = penalty_hits.get(reason, 0) + 1
+
         exec_summary = llm.call_chat(
             "You are a senior market research analyst writing an executive summary.",
             _exec_summary_prompt(rankings, study_row["kbq"] or "", len(by_avatar)),
@@ -487,7 +509,17 @@ class StudyDataActivities:
             _interpretation_prompt(rankings, cohort_breakdown),
             max_tokens=600,
         )
-        report_md = f"## Executive Summary\n\n{exec_summary}\n\n## Interpretation\n\n{interpretation}"
+
+        report_md = _assemble_report_md(
+            kbq=study_row["kbq"] or "",
+            n_respondents=len(by_avatar),
+            rankings=rankings,
+            exec_summary=exec_summary,
+            cohort_breakdown=cohort_breakdown,
+            interpretation=interpretation,
+            penalty_hits=penalty_hits,
+            n_reactions=len(reaction_rows),
+        )
 
         winner_strength = rankings[0]["bt_strength"]
         lowest_strength = rankings[-1]["bt_strength"]
@@ -506,7 +538,9 @@ class StudyDataActivities:
                                  summary = EXCLUDED.summary,
                                  updated_at = now()""",
                 run_id, report_md, baseline_lift_pct,
-                json.dumps({"cohort_breakdown": cohort_breakdown}, default=str),
+                json.dumps(
+                    {"cohort_breakdown": cohort_breakdown, "penalty_hits": penalty_hits}, default=str
+                ),
             )
 
     @activity.defn
@@ -570,3 +604,98 @@ Write 3 paragraphs:
 3. Differentiation across persona families
 
 Use clear market-research language."""
+
+
+# ------------------------------------------------------ report assembly ---
+# Deterministic rendering — ported section-for-section from the POC's
+# Results Report tab (ssr_poc.py, TAB 3). Only the executive summary and
+# interpretation text come from an LLM; rankings/cohort/penalty sections are
+# rendered straight from data rollup_message_results already computed.
+
+def _rankings_table_md(rankings: list[dict]) -> str:
+    lines = ["| Rank | Message | BT Strength | Recommendation |", "|---|---|---|---|"]
+    for r in rankings:
+        text = r["text"].replace("|", "\\|")
+        lines.append(f"| {r['rank']} | {text} | {r['bt_strength']:.3f} | {r['recommendation']} |")
+    return "\n".join(lines)
+
+
+def _cohort_breakdown_md(cohort_breakdown: dict) -> str:
+    if not cohort_breakdown:
+        return "_No cohort data available._"
+
+    sections = []
+    top_picks: dict[str, str] = {}
+    for family, ranked in sorted(cohort_breakdown.items()):
+        top_picks[family] = ranked[0]["text"]
+        lines = [f"**{family}**"]
+        for entry in ranked:
+            lines.append(f"{entry['preference_rank']}. {entry['text']} — avg score {entry['avg_score']}")
+        sections.append("\n".join(lines))
+
+    unique_picks = set(top_picks.values())
+    if len(unique_picks) == 1:
+        alignment = f"✅ All persona families agree — **{next(iter(unique_picks))}** is the preferred message."
+    else:
+        detail = " | ".join(f"{fam}: {msg}" for fam, msg in top_picks.items())
+        alignment = f"⚠️ Persona families disagree on the top message: {detail}. Consider differentiated messaging by audience."
+
+    return "\n\n".join(sections) + "\n\n**Stakeholder alignment:** " + alignment
+
+
+def _penalty_impact_md(penalty_hits: dict[str, int], n_reactions: int) -> str:
+    if not penalty_hits or n_reactions == 0:
+        return "No penalties were triggered in this run."
+    lines = []
+    for reason, count in sorted(penalty_hits.items(), key=lambda kv: kv[1], reverse=True):
+        pct = count / n_reactions * 100
+        lines.append(f"- **{reason}** — triggered {count} times ({pct:.0f}% of reactions)")
+    return "\n".join(lines)
+
+
+def _strategic_recommendation_md(rankings: list[dict], n_respondents: int) -> str:
+    winner = rankings[0]
+    return (
+        f"Lead your messaging with **\"{winner['text']}\"** — the top-ranked message "
+        f"across {n_respondents} synthetic respondents, with a Bradley-Terry strength of "
+        f"{winner['bt_strength']:.3f} (rank {winner['rank']} of {len(rankings)}, "
+        f"tier: {winner['recommendation']}).\n\n"
+        f"Before committing to expensive human market research, use this ranking to "
+        f"prioritize which 1-2 messages to test — not all {len(rankings)}."
+    )
+
+
+def _assemble_report_md(
+    *, kbq: str, n_respondents: int, rankings: list[dict], exec_summary: str,
+    cohort_breakdown: dict, interpretation: str, penalty_hits: dict[str, int], n_reactions: int,
+) -> str:
+    generated_at = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
+    return f"""# SSR Concept Testing — Simulation Report
+
+_Generated {generated_at} · {n_respondents} synthetic respondents · {len(rankings)} messages tested_
+_Key Belief Question: {kbq}_
+
+## 1. Executive Summary
+
+{exec_summary}
+
+## 2. Message Rankings — Bradley-Terry Tournament Results
+
+{_rankings_table_md(rankings)}
+
+## 3. Cohort Breakdown by Persona
+
+{_cohort_breakdown_md(cohort_breakdown)}
+
+## 4. Detailed Interpretation
+
+{interpretation}
+
+## 5. Penalty Impact Summary
+
+{_penalty_impact_md(penalty_hits, n_reactions)}
+
+## 6. Strategic Recommendation
+
+{_strategic_recommendation_md(rankings, n_respondents)}
+"""

@@ -57,7 +57,6 @@ class Settings(BaseSettings):
     )
     embedding_batch_size: int = 50
     max_batches_per_run: int = 1000
-    approval_timeout_days: int = 7
     reaction_concurrency: int = 8
 
     @property
