@@ -1,0 +1,41 @@
+[project]
+name = "digital-twin-engine"
+version = "0.1.0"
+description = "SSR pipeline workers. Not implemented yet — see README.md."
+requires-python = ">=3.14"
+dependencies = [
+    "temporalio>=1.7",
+    "python-dotenv>=1.0.1",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["engine*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.16.3",
+    "pytest>=8.3",
+    "pytest-asyncio>=0.25",
+]
+
+# ---------------------------------------------------------------------------
+# Tests
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.ruff.lint.per-file-ignores]
+# conftest must set APP_* env vars before any `app.*` import, so its imports
+# legitimately sit below executable code.
+"tests/conftest.py" = ["E402"]
