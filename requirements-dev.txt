@@ -1,4 +1,0 @@
-# Dev/CI tooling only — not needed to run the app itself.
-# Test tooling (pytest, pytest-asyncio) lands with the rest of milestone 2.
-
-ruff>=0.16.1
