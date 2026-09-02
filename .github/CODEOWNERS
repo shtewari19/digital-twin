@@ -2,3 +2,9 @@
 # Only takes effect on PRs if branch protection has "Require review from
 # Code Owners" enabled.
 * @shtewari19
+
+# Once each team has GitHub handles, scope ownership per app instead of the
+# global fallback above (rules further down the file win on a match):
+# /apps/web/     @web-team-handle
+# /apps/api/     @api-team-handle
+# /apps/engine/  @engine-team-handle
