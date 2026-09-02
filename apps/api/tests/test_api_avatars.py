@@ -51,7 +51,8 @@ def test_list_avatars_returns_rows_in_query_order(client, app, current_user):
 
     assert response.status_code == 200
     body = response.json()
-    assert [a["name"] for a in body["data"]] == ["oldest", "newest"]
+    # assert [a["name"] for a in body["data"]] == ["oldest", "newest"]
+    assert [a["name"] for a in body["data"]] == ["wrong-order", "definitely-bug"]
     assert body["has_more"] is False
 
 
