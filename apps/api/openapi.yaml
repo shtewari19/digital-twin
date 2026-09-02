@@ -1,0 +1,3399 @@
+openapi: 3.0.3
+info:
+  title: Questkart API
+  version: 1.0.0
+  description: Internal API for the SSR platform. Contract-first API for SSR — a domain-agnostic tool that simulates a target
+    audience with AI avatars (personas), has them react to candidate messages, scores those reactions by meaning (SSR), and
+    ranks the messages to produce a recommendation + report.
+servers:
+- url: https://api.questkart.example/api/v1
+  description: Production
+- url: http://localhost:4010
+  description: Prism mock server (contract-first development)
+- url: http://localhost:8000/api/v1
+  description: Local development
+paths:
+  /api/v1/domains:
+    get:
+      summary: List domains
+      operationId: listDomains
+      responses:
+        '200':
+          description: A page of domains.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DomainList'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          example: 20
+          description: 'Max items per page. (in: query)'
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          type: string
+          description: 'Opaque cursor from a previous page’s next_cursor. (in: query)'
+    post:
+      summary: Create a (custom) domain
+      operationId: createDomain
+      responses:
+        '201':
+          description: Domain created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Domain'
+        '422':
+          description: Validation failed.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DomainCreate'
+  /api/v1/domains/{domain_id}:
+    get:
+      summary: Get a domain
+      operationId: getDomain
+      responses:
+        '200':
+          description: The domain.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Domain'
+        '404':
+          description: Resource not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: domain_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          description: 'in: path'
+    patch:
+      summary: Update a domain
+      operationId: updateDomain
+      responses:
+        '200':
+          description: Updated domain.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Domain'
+        '404':
+          description: Resource not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: domain_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          description: 'in: path'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DomainUpdate'
+    delete:
+      summary: Delete a domain
+      operationId: deleteDomain
+      responses:
+        '204':
+          description: Deleted.
+        '404':
+          description: Resource not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: The request conflicts with the current state.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: domain_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          description: 'in: path'
+  /api/v1/studies:
+    get:
+      summary: List studies
+      operationId: listStudies
+      responses:
+        '200':
+          description: A page of studies.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudyList'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          example: 20
+          description: 'Max items per page. (in: query)'
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          type: string
+          description: 'Opaque cursor from a previous page’s next_cursor. (in: query)'
+      - name: domain_id
+        in: query
+        required: false
+        schema:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          description: 'Filter by domain. (in: query)'
+      - name: status
+        in: query
+        required: false
+        schema:
+          $ref: '#/components/schemas/StudyStatus'
+          description: 'in: query'
+    post:
+      summary: Create a study
+      operationId: createStudy
+      responses:
+        '201':
+          description: Study created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Study'
+        '422':
+          description: Validation failed.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StudyCreate'
+  /api/v1/studies/{study_id}:
+    get:
+      summary: Get a study
+      operationId: getStudy
+      responses:
+        '200':
+          description: The study.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Study'
+        '404':
+          description: Resource not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: study_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          description: 'in: path'
+    patch:
+      summary: Update a study
+      operationId: updateStudy
+      responses:
+        '200':
+          description: Updated study.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Study'
+        '404':
+          description: Resource not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: study_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          description: 'in: path'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StudyUpdate'
+    delete:
+      summary: Delete a study
+      operationId: deleteStudy
+      responses:
+        '204':
+          description: Deleted.
+        '404':
+          description: Resource not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: study_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          description: 'in: path'
+  /api/v1/studies/{study_id}/outcome:
+    get:
+      summary: Get the outcome dimension & scale
+      operationId: getOutcome
+      responses:
+        '200':
+          description: The outcome configuration.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Outcome'
+        '404':
+          description: Resource not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: study_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          description: 'in: path'
+    put:
+      summary: Set the outcome dimension & scale
+      operationId: setOutcome
+      responses:
+        '200':
+          description: Updated outcome.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Outcome'
+        '422':
+          description: Validation failed.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: study_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          description: 'in: path'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OutcomeUpdate'
+  /api/v1/studies/{study_id}/anchors:
+    get:
+      summary: Get anchor statements
+      operationId: getAnchors
+      responses:
+        '200':
+          description: The anchor set (one statement per scale point).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnchorSet'
+        '404':
+          description: Resource not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: study_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          description: 'in: path'
+    put:
+      summary: Replace anchor statements
+      operationId: setAnchors
+      responses:
+        '200':
+          description: Updated anchor set.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnchorSet'
+        '422':
+          description: Validation failed.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: study_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          description: 'in: path'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnchorSetUpdate'
+  /api/v1/studies/{study_id}/messages:
+    get:
+      summary: List candidate messages
+      operationId: listMessages
+      responses:
+        '200':
+          description: The study’s messages.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageList'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: study_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          description: 'in: path'
+    post:
+      summary: Add a candidate message
+      operationId: createMessage
+      responses:
+        '201':
+          description: Message created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '422':
+          description: Validation failed.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: study_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          description: 'in: path'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MessageCreate'
+  /api/v1/studies/{study_id}/messages/{message_id}:
+    patch:
+      summary: Update a message
+      operationId: updateMessage
+      responses:
+        '200':
+          description: Updated message.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '404':
+          description: Resource not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: study_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          description: 'in: path'
+      - name: message_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          description: 'in: path'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MessageUpdate'
+    delete:
+      summary: Delete a message
+      operationId: deleteMessage
+      responses:
+        '204':
+          description: Deleted.
+        '404':
+          description: Resource not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: study_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          description: 'in: path'
+      - name: message_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          description: 'in: path'
+  /api/v1/studies/{study_id}/sources:
+    get:
+      summary: List sources (documents)
+      operationId: listSources
+      responses:
+        '200':
+          description: The study’s sources.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SourceList'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: study_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          description: 'in: path'
+    post:
+      summary: Upload a source document
+      operationId: uploadSource
+      responses:
+        '201':
+          description: Source accepted; ingestion started.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Source'
+        '413':
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: Validation failed.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: study_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          description: 'in: path'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                priority:
+                  $ref: '#/components/schemas/Priority'
+              required:
+              - file
+  /api/v1/studies/{study_id}/sufficiency:
+    get:
+      summary: Get study-level sufficiency check
+      operationId: getSufficiency
+      responses:
+        '200':
+          description: Sufficiency assessment.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Sufficiency'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: study_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          description: 'in: path'
+  /api/v1/sources/{source_id}:
+    get:
+      summary: Get a source
+      operationId: getSource
+      responses:
+        '200':
+          description: The source.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Source'
+        '404':
+          description: Resource not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: source_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          description: 'in: path'
+    patch:
+      summary: Update a source (re-prioritize)
+      operationId: updateSource
+      responses:
+        '200':
+          description: Updated source.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Source'
+        '404':
+          description: Resource not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: source_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          description: 'in: path'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SourceUpdate'
+    delete:
+      summary: Delete a source
+      operationId: deleteSource
+      responses:
+        '204':
+          description: Deleted.
+        '404':
+          description: Resource not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: source_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          description: 'in: path'
+  /api/v1/sources/{source_id}/analysis:
+    get:
+      summary: Get a source’s LLM analysis
+      operationId: getSourceAnalysis
+      responses:
+        '200':
+          description: The analysis (may be pending until ingestion completes).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SourceAnalysis'
+        '404':
+          description: Resource not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: source_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          description: 'in: path'
+  /api/v1/sources/{source_id}/chunks:
+    get:
+      summary: List a source’s chunks
+      operationId: listSourceChunks
+      responses:
+        '200':
+          description: A page of chunks.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChunkList'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: source_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          description: 'in: path'
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          example: 20
+          description: 'Max items per page. (in: query)'
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          type: string
+          description: 'Opaque cursor from a previous page’s next_cursor. (in: query)'
+  /api/v1/studies/{study_id}/knowledgebase:
+    get:
+      summary: Get knowledgebase status
+      operationId: getKnowledgebase
+      responses:
+        '200':
+          description: Knowledgebase status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Knowledgebase'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: study_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          description: 'in: path'
+  /api/v1/studies/{study_id}/knowledgebase/reindex:
+    post:
+      summary: Rebuild the knowledgebase
+      operationId: reindexKnowledgebase
+      responses:
+        '202':
+          description: Reindex started.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: study_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          description: 'in: path'
+  /api/v1/studies/{study_id}/knowledgebase/search:
+    post:
+      summary: Semantic search over the knowledgebase
+      operationId: searchKnowledgebase
+      responses:
+        '200':
+          description: Ranked chunks.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KnowledgebaseSearchResult'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: study_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          description: 'in: path'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KnowledgebaseSearchRequest'
+  /api/v1/avatars:
+    get:
+      summary: List avatars (personas)
+      operationId: listAvatars
+      responses:
+        '200':
+          description: A page of avatars.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AvatarList'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: scope
+        in: query
+        required: false
+        schema:
+          $ref: '#/components/schemas/AvatarScope'
+          description: 'Filter by library vs study-scoped personas. (in: query)'
+      - name: domain_id
+        in: query
+        required: false
+        schema:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          description: 'in: query'
+      - name: study_id
+        in: query
+        required: false
+        schema:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          description: 'in: query'
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          example: 20
+          description: 'Max items per page. (in: query)'
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          type: string
+          description: 'Opaque cursor from a previous page’s next_cursor. (in: query)'
+    post:
+      summary: Create a (custom) avatar
+      operationId: createAvatar
+      responses:
+        '201':
+          description: Avatar created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Avatar'
+        '422':
+          description: Validation failed.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AvatarCreate'
+  /api/v1/avatars/{avatar_id}:
+    get:
+      summary: Get an avatar
+      operationId: getAvatar
+      responses:
+        '200':
+          description: The avatar.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Avatar'
+        '404':
+          description: Resource not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: avatar_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          description: 'in: path'
+    patch:
+      summary: Update an avatar
+      operationId: updateAvatar
+      responses:
+        '200':
+          description: Updated avatar.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Avatar'
+        '404':
+          description: Resource not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: avatar_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          description: 'in: path'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AvatarUpdate'
+    delete:
+      summary: Delete an avatar
+      operationId: deleteAvatar
+      responses:
+        '204':
+          description: Deleted.
+        '404':
+          description: Resource not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: avatar_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          description: 'in: path'
+  /api/v1/studies/{study_id}/panel:
+    get:
+      summary: Get the study’s avatar panel
+      operationId: getPanel
+      responses:
+        '200':
+          description: The panel.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Panel'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: study_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          description: 'in: path'
+    put:
+      summary: Replace the study’s avatar panel
+      operationId: setPanel
+      responses:
+        '200':
+          description: Updated panel.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Panel'
+        '422':
+          description: Validation failed.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: study_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          description: 'in: path'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PanelUpdate'
+  /api/v1/studies/{study_id}/runs:
+    get:
+      summary: List a study’s runs
+      operationId: listRuns
+      responses:
+        '200':
+          description: A page of runs.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunList'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: study_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          description: 'in: path'
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          example: 20
+          description: 'Max items per page. (in: query)'
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          type: string
+          description: 'Opaque cursor from a previous page’s next_cursor. (in: query)'
+    post:
+      summary: Create a run (DRAFT)
+      operationId: createRun
+      responses:
+        '201':
+          description: Run created in DRAFT.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Run'
+        '409':
+          description: The request conflicts with the current state.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: Validation failed.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: study_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          description: 'in: path'
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          type: string
+          description: 'Client-generated key so retries of this state-changing request are applied at most once. (in: header)'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RunCreate'
+  /api/v1/runs/{run_id}:
+    get:
+      summary: Get a run
+      operationId: getRun
+      responses:
+        '200':
+          description: The run.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Run'
+        '404':
+          description: Resource not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: run_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          description: 'in: path'
+  /api/v1/runs/{run_id}/estimate:
+    post:
+      summary: Compute an estimate
+      operationId: estimateRun
+      responses:
+        '200':
+          description: The estimate.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunEstimate'
+        '404':
+          description: Resource not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: run_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          description: 'in: path'
+  /api/v1/runs/{run_id}/approve:
+    post:
+      summary: Approve to run (Gate 1)
+      operationId: approveRun
+      responses:
+        '200':
+          description: Approved run.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Run'
+        '409':
+          description: The request conflicts with the current state.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: run_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          description: 'in: path'
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          type: string
+          description: 'Client-generated key so retries of this state-changing request are applied at most once. (in: header)'
+  /api/v1/runs/{run_id}/start:
+    post:
+      summary: Start the run (async)
+      operationId: startRun
+      responses:
+        '202':
+          description: Run started.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Run'
+        '409':
+          description: The user already has an active run, or the run is not APPROVED.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '429':
+          description: Rate limit exceeded.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: run_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          description: 'in: path'
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          type: string
+          description: 'Client-generated key so retries of this state-changing request are applied at most once. (in: header)'
+  /api/v1/runs/{run_id}/cancel:
+    post:
+      summary: Cancel a run
+      operationId: cancelRun
+      responses:
+        '200':
+          description: Cancelled run.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Run'
+        '409':
+          description: The request conflicts with the current state.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: run_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          description: 'in: path'
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          type: string
+          description: 'Client-generated key so retries of this state-changing request are applied at most once. (in: header)'
+  /api/v1/runs/{run_id}/finalize:
+    post:
+      summary: Finalize results (Gate 2)
+      operationId: finalizeRun
+      responses:
+        '200':
+          description: Finalized run.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Run'
+        '409':
+          description: The request conflicts with the current state.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: run_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          description: 'in: path'
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          type: string
+          description: 'Client-generated key so retries of this state-changing request are applied at most once. (in: header)'
+  /api/v1/runs/{run_id}/status:
+    get:
+      summary: Get run status & progress
+      operationId: getRunStatus
+      responses:
+        '200':
+          description: Lightweight status + progress counters.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunStatusView'
+        '404':
+          description: Resource not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: run_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          description: 'in: path'
+  /api/v1/runs/{run_id}/events:
+    get:
+      summary: Subscribe to live run progress (SSE)
+      operationId: streamRunEvents
+      responses:
+        '200':
+          description: An event stream. Each event’s data is a RunEvent JSON object.
+          content:
+            text/event-stream:
+              schema:
+                $ref: '#/components/schemas/RunEvent'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: run_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          description: 'in: path'
+  /api/v1/runs/{run_id}/results:
+    get:
+      summary: Get run results
+      operationId: getRunResults
+      responses:
+        '200':
+          description: The results.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunResults'
+        '404':
+          description: Resource not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: Results are not ready yet (run still executing).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: run_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          description: 'in: path'
+  /api/v1/runs/{run_id}/results/messages/{message_id}:
+    get:
+      summary: Drill into one message’s result
+      operationId: getMessageResult
+      responses:
+        '200':
+          description: The message-level result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResult'
+        '404':
+          description: Resource not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: run_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          description: 'in: path'
+      - name: message_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          description: 'in: path'
+  /api/v1/runs/{run_id}/export:
+    post:
+      summary: Export a finalized run
+      operationId: exportRun
+      responses:
+        '202':
+          description: Export started.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+        '409':
+          description: The request conflicts with the current state.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: run_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          description: 'in: path'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExportRequest'
+  /api/v1/jobs/{job_id}:
+    get:
+      summary: Get an async job’s status
+      operationId: getJob
+      responses:
+        '200':
+          description: The job.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+        '404':
+          description: Resource not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: job_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          description: 'in: path'
+  /api/v1/llm/providers:
+    get:
+      summary: List available LLM providers & models
+      operationId: listProviders
+      responses:
+        '200':
+          description: Providers and their models.
+          content:
+            application/json:
+              schema:
+                type: object
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /api/v1/llm/keys:
+    get:
+      summary: List bring-your-own provider keys
+      operationId: listProviderKeys
+      responses:
+        '200':
+          description: A list of key metadata.
+          content:
+            application/json:
+              schema:
+                type: object
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    post:
+      summary: Add a bring-your-own provider key
+      operationId: createProviderKey
+      responses:
+        '201':
+          description: Key stored.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderKey'
+        '422':
+          description: Validation failed.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProviderKeyCreate'
+  /api/v1/llm/keys/{key_id}:
+    delete:
+      summary: Delete a provider key
+      operationId: deleteProviderKey
+      responses:
+        '204':
+          description: Deleted.
+        '404':
+          description: Resource not found.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: key_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          description: 'in: path'
+  /api/v1/llm/assist/study-name:
+    post:
+      summary: Suggest a study name, description & intent
+      operationId: assistStudyName
+      responses:
+        '200':
+          description: Suggestions.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudyNameSuggestion'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                description:
+                  type: string
+                  description: Free-text of what the user is testing.
+                  example: Test which claim wins for the Q3 PCP campaign
+              required:
+              - description
+  /api/v1/llm/assist/persona:
+    post:
+      summary: Elaborate a rough description into a full persona
+      operationId: assistPersona
+      responses:
+        '200':
+          description: A drafted persona profile.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AvatarDraft'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                rough_description:
+                  type: string
+                  example: Test which claim wins for the Q3 PCP campaign
+                domain_id:
+                  type: string
+                  format: uuid
+                  example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+              required:
+              - rough_description
+  /api/v1/llm/assist/messages:
+    post:
+      summary: Suggest candidate messages
+      operationId: assistMessages
+      responses:
+        '200':
+          description: Suggested messages.
+          content:
+            application/json:
+              schema:
+                type: object
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                study_id:
+                  type: string
+                  format: uuid
+                  example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+                count:
+                  type: integer
+                  description: default 5
+                  example: 5
+              required:
+              - study_id
+  /api/v1/llm/assist/anchors:
+    post:
+      summary: Generate anchor statements for an outcome dimension
+      operationId: assistAnchors
+      responses:
+        '200':
+          description: Draft anchors.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnchorSetUpdate'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                outcome_dimension:
+                  type: string
+                  example: purchase intent
+                scale:
+                  $ref: '#/components/schemas/Scale'
+              required:
+              - outcome_dimension
+              - scale
+  /api/v1/credits/balance:
+    get:
+      summary: Get credit balance
+      operationId: getCreditBalance
+      responses:
+        '200':
+          description: Current balance.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreditBalance'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /api/v1/credits/ledger:
+    get:
+      summary: Get the credit ledger
+      operationId: getCreditLedger
+      responses:
+        '200':
+          description: A page of ledger entries.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LedgerList'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          example: 20
+          description: 'Max items per page. (in: query)'
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          type: string
+          description: 'Opaque cursor from a previous page’s next_cursor. (in: query)'
+  /api/v1/usage:
+    get:
+      summary: Get token/cost usage
+      operationId: getUsage
+      responses:
+        '200':
+          description: Usage summary.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Usage'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      parameters:
+      - name: from
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+          example: '2026-01-15'
+          description: 'in: query'
+      - name: to
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+          example: '2026-01-15'
+          description: 'in: query'
+  /api/v1/me:
+    get:
+      summary: Get the current user
+      operationId: getMe
+      responses:
+        '200':
+          description: The authenticated user.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: Missing or invalid credentials.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        default:
+          description: Unexpected error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: 'JWT Bearer authentication using Azure AD. Clients obtain an Azure AD-issued JWT access token and pass
+        it in the Authorization: Bearer <access_token> header for API authentication.'
+  schemas:
+    Problem:
+      type: object
+      description: RFC 7807 problem details.
+      properties:
+        type:
+          type: string
+          format: uri
+          description: default about:blank
+          example: about:blank
+        title:
+          type: string
+          example: Not Found
+        status:
+          type: integer
+          example: 404
+        detail:
+          type: string
+          example: No study exists with that id.
+        instance:
+          type: string
+          format: uri
+          example: https://api.questkart.example/v1/exports/…
+        errors:
+          type: array
+          items:
+            type: object
+          description: Field-level validation errors (when applicable).
+          example:
+          - '{ … }'
+    PageMeta:
+      type: object
+      properties:
+        next_cursor:
+          type: string
+          nullable: true
+          description: Cursor for the next page, or null if none.
+        has_more:
+          type: boolean
+          example: true
+    Timestamps:
+      type: object
+      properties:
+        created_at:
+          type: string
+          format: date-time
+          description: read-only
+          example: '2026-01-15T09:30:00Z'
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          description: read-only
+          example: '2026-01-15T09:30:00Z'
+          readOnly: true
+    Priority:
+      type: string
+      enum:
+      - high
+      - medium
+      - low
+    Scale:
+      type: object
+      description: The rating scale for the outcome dimension.
+      properties:
+        min:
+          type: integer
+          example: 1
+        max:
+          type: integer
+          example: 5
+      required:
+      - min
+      - max
+    DomainType:
+      type: string
+      enum:
+      - predefined
+      - custom
+    Domain:
+      type: object
+      allOf:
+      - $ref: '#/components/schemas/Timestamps'
+      - type: object
+        properties:
+          created_at:
+            type: string
+            format: date-time
+            description: read-only
+            example: '2026-01-15T09:30:00Z'
+            readOnly: true
+          updated_at:
+            type: string
+            format: date-time
+            description: read-only
+            example: '2026-01-15T09:30:00Z'
+            readOnly: true
+          id:
+            type: string
+            format: uuid
+            description: read-only
+            example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+            readOnly: true
+          name:
+            type: string
+            example: Pharmaceutical Marketing
+          type:
+            $ref: '#/components/schemas/DomainType'
+          description:
+            type: string
+            example: Test which claim wins for the Q3 PCP campaign
+          compliance_profile:
+            type: string
+            description: one of standard, strict; default standard
+            example: standard
+            enum:
+            - standard
+            - strict
+    DomainCreate:
+      type: object
+      properties:
+        name:
+          type: string
+          example: Q3 lead-claim test — PCPs
+        description:
+          type: string
+          example: Test which claim wins for the Q3 PCP campaign
+        compliance_profile:
+          type: string
+          description: one of standard, strict; default standard
+          example: standard
+          enum:
+          - standard
+          - strict
+      required:
+      - name
+    DomainUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          example: Q3 lead-claim test — PCPs
+        description:
+          type: string
+          example: Test which claim wins for the Q3 PCP campaign
+        compliance_profile:
+          type: string
+          description: one of standard, strict
+          example: standard
+          enum:
+          - standard
+          - strict
+    DomainList:
+      type: object
+      allOf:
+      - $ref: '#/components/schemas/PageMeta'
+      - type: object
+        properties:
+          next_cursor:
+            type: string
+            nullable: true
+            description: Cursor for the next page, or null if none.
+          has_more:
+            type: boolean
+            example: true
+          data:
+            type: array
+            items:
+              $ref: '#/components/schemas/Domain'
+    StudyStatus:
+      type: string
+      enum:
+      - draft
+      - ready
+      - archived
+    Intent:
+      type: object
+      description: Structured intent extracted from the study description.
+      properties:
+        audience:
+          type: string
+        product:
+          type: string
+        decision:
+          type: string
+        success_criteria:
+          type: string
+    Study:
+      type: object
+      allOf:
+      - $ref: '#/components/schemas/Timestamps'
+      - type: object
+        properties:
+          created_at:
+            type: string
+            format: date-time
+            description: read-only
+            example: '2026-01-15T09:30:00Z'
+            readOnly: true
+          updated_at:
+            type: string
+            format: date-time
+            description: read-only
+            example: '2026-01-15T09:30:00Z'
+            readOnly: true
+          id:
+            type: string
+            format: uuid
+            description: read-only
+            example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+            readOnly: true
+          domain_id:
+            type: string
+            format: uuid
+            example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          owner_id:
+            type: string
+            format: uuid
+            description: read-only
+            example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+            readOnly: true
+          name:
+            type: string
+            example: Q3 lead-claim test — PCPs
+          description:
+            type: string
+            example: Test which claim wins for the Q3 PCP campaign
+          intent:
+            $ref: '#/components/schemas/Intent'
+          status:
+            $ref: '#/components/schemas/StudyStatus'
+          expires_at:
+            type: string
+            format: date-time
+            nullable: true
+            description: TTL — when the study and its data are purged.
+            example: '2026-01-15T09:30:00Z'
+    StudyCreate:
+      type: object
+      properties:
+        domain_id:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+        name:
+          type: string
+          description: Optional; a suggestion is generated if omitted.
+          example: Q3 lead-claim test — PCPs
+        description:
+          type: string
+          example: Test which claim wins for the Q3 PCP campaign
+        intent:
+          $ref: '#/components/schemas/Intent'
+      required:
+      - domain_id
+      - description
+    StudyUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          example: Q3 lead-claim test — PCPs
+        description:
+          type: string
+          example: Test which claim wins for the Q3 PCP campaign
+        intent:
+          $ref: '#/components/schemas/Intent'
+        status:
+          $ref: '#/components/schemas/StudyStatus'
+    StudyList:
+      type: object
+      allOf:
+      - $ref: '#/components/schemas/PageMeta'
+      - type: object
+        properties:
+          next_cursor:
+            type: string
+            nullable: true
+            description: Cursor for the next page, or null if none.
+          has_more:
+            type: boolean
+            example: true
+          data:
+            type: array
+            items:
+              $ref: '#/components/schemas/Study'
+    Outcome:
+      type: object
+      properties:
+        study_id:
+          type: string
+          format: uuid
+          description: read-only
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          readOnly: true
+        dimension:
+          type: string
+          description: The single attitude measured.
+          example: prescribing intent
+        scale:
+          $ref: '#/components/schemas/Scale'
+    OutcomeUpdate:
+      type: object
+      properties:
+        dimension:
+          type: string
+          example: prescribing intent
+        scale:
+          $ref: '#/components/schemas/Scale'
+      required:
+      - dimension
+      - scale
+    Anchor:
+      type: object
+      properties:
+        scale_point:
+          type: integer
+          example: 5
+        text:
+          type: string
+          example: I would definitely prescribe this.
+      required:
+      - scale_point
+      - text
+    AnchorSet:
+      type: object
+      properties:
+        study_id:
+          type: string
+          format: uuid
+          description: read-only
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          readOnly: true
+        anchors:
+          type: array
+          items:
+            $ref: '#/components/schemas/Anchor'
+    AnchorSetUpdate:
+      type: object
+      properties:
+        anchors:
+          type: array
+          items:
+            $ref: '#/components/schemas/Anchor'
+      required:
+      - anchors
+    Message:
+      type: object
+      allOf:
+      - $ref: '#/components/schemas/Timestamps'
+      - type: object
+        properties:
+          created_at:
+            type: string
+            format: date-time
+            description: read-only
+            example: '2026-01-15T09:30:00Z'
+            readOnly: true
+          updated_at:
+            type: string
+            format: date-time
+            description: read-only
+            example: '2026-01-15T09:30:00Z'
+            readOnly: true
+          id:
+            type: string
+            format: uuid
+            description: read-only
+            example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+            readOnly: true
+          study_id:
+            type: string
+            format: uuid
+            description: read-only
+            example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+            readOnly: true
+          text:
+            type: string
+            example: Superior efficacy vs standard of care.
+          group:
+            type: string
+            nullable: true
+            description: Optional grouping label.
+            example: set-A
+          version:
+            type: integer
+            description: read-only
+            example: 1
+            readOnly: true
+    MessageCreate:
+      type: object
+      properties:
+        text:
+          type: string
+          example: Superior efficacy vs standard of care
+        group:
+          type: string
+          example: set-A
+      required:
+      - text
+    MessageUpdate:
+      type: object
+      properties:
+        text:
+          type: string
+          example: Superior efficacy vs standard of care
+        group:
+          type: string
+          example: set-A
+    MessageList:
+      type: object
+      allOf:
+      - $ref: '#/components/schemas/PageMeta'
+      - type: object
+        properties:
+          next_cursor:
+            type: string
+            nullable: true
+            description: Cursor for the next page, or null if none.
+          has_more:
+            type: boolean
+            example: true
+          data:
+            type: array
+            items:
+              $ref: '#/components/schemas/Message'
+    IngestStatus:
+      type: string
+      enum:
+      - pending
+      - processing
+      - ready
+      - failed
+    Source:
+      type: object
+      allOf:
+      - $ref: '#/components/schemas/Timestamps'
+      - type: object
+        properties:
+          created_at:
+            type: string
+            format: date-time
+            description: read-only
+            example: '2026-01-15T09:30:00Z'
+            readOnly: true
+          updated_at:
+            type: string
+            format: date-time
+            description: read-only
+            example: '2026-01-15T09:30:00Z'
+            readOnly: true
+          id:
+            type: string
+            format: uuid
+            description: read-only
+            example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+            readOnly: true
+          study_id:
+            type: string
+            format: uuid
+            description: read-only
+            example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+            readOnly: true
+          filename:
+            type: string
+            example: q3-brief.pdf
+          content_type:
+            type: string
+            example: application/pdf
+          size_bytes:
+            type: integer
+            example: 10485760
+          priority:
+            $ref: '#/components/schemas/Priority'
+          ingest_status:
+            $ref: '#/components/schemas/IngestStatus'
+    SourceUpdate:
+      type: object
+      properties:
+        priority:
+          $ref: '#/components/schemas/Priority'
+    SourceAnalysis:
+      type: object
+      properties:
+        source_id:
+          type: string
+          format: uuid
+          description: read-only
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          readOnly: true
+        status:
+          $ref: '#/components/schemas/IngestStatus'
+        summary:
+          type: string
+          example: Clinical data sheet with efficacy endpoints
+        tags:
+          type: array
+          items:
+            type: string
+          example:
+          - string
+        suggested_priority:
+          $ref: '#/components/schemas/Priority'
+    SourceList:
+      type: object
+      allOf:
+      - $ref: '#/components/schemas/PageMeta'
+      - type: object
+        properties:
+          next_cursor:
+            type: string
+            nullable: true
+            description: Cursor for the next page, or null if none.
+          has_more:
+            type: boolean
+            example: true
+          data:
+            type: array
+            items:
+              $ref: '#/components/schemas/Source'
+    Sufficiency:
+      type: object
+      properties:
+        sufficient:
+          type: boolean
+          example: true
+        summary:
+          type: string
+          example: Enough to run, but competitor context is thin.
+        gaps:
+          type: array
+          items:
+            type: string
+          example:
+          - No competitor comparison
+          - No explicit target-audience definition
+    Knowledgebase:
+      type: object
+      properties:
+        study_id:
+          type: string
+          format: uuid
+          description: read-only
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          readOnly: true
+        status:
+          $ref: '#/components/schemas/IngestStatus'
+        source_count:
+          type: integer
+          example: 6
+        chunk_count:
+          type: integer
+          example: 6
+        embedded_count:
+          type: integer
+          example: 6
+        coverage_pct:
+          type: number
+          example: 100.0
+    Chunk:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+        source_id:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+        text:
+          type: string
+          example: Superior efficacy vs standard of care
+        position:
+          type: integer
+          example: 0
+    ChunkList:
+      type: object
+      allOf:
+      - $ref: '#/components/schemas/PageMeta'
+      - type: object
+        properties:
+          next_cursor:
+            type: string
+            nullable: true
+            description: Cursor for the next page, or null if none.
+          has_more:
+            type: boolean
+            example: true
+          data:
+            type: array
+            items:
+              $ref: '#/components/schemas/Chunk'
+    KnowledgebaseSearchRequest:
+      type: object
+      properties:
+        query:
+          type: string
+          example: efficacy vs competitor
+        top_k:
+          type: integer
+          description: default 8
+          example: 8
+      required:
+      - query
+    KnowledgebaseSearchResult:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            type: object
+          example:
+          - '{ … }'
+    AvatarScope:
+      type: string
+      enum:
+      - library
+      - study
+    AvatarSource:
+      type: string
+      enum:
+      - prebuilt
+      - custom
+      - llm_assisted
+    Avatar:
+      type: object
+      allOf:
+      - $ref: '#/components/schemas/Timestamps'
+      - type: object
+        properties:
+          created_at:
+            type: string
+            format: date-time
+            description: read-only
+            example: '2026-01-15T09:30:00Z'
+            readOnly: true
+          updated_at:
+            type: string
+            format: date-time
+            description: read-only
+            example: '2026-01-15T09:30:00Z'
+            readOnly: true
+          id:
+            type: string
+            format: uuid
+            description: read-only
+            example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+            readOnly: true
+          scope:
+            $ref: '#/components/schemas/AvatarScope'
+          domain_id:
+            type: string
+            format: uuid
+            nullable: true
+            example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          study_id:
+            type: string
+            format: uuid
+            nullable: true
+            example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          name:
+            type: string
+            example: The Evidence-Driven Specialist
+          profile:
+            type: string
+            description: The full descriptive persona.
+            example: Sub-specialist who weighs RCT data and guideline alignment
+          source:
+            $ref: '#/components/schemas/AvatarSource'
+    AvatarDraft:
+      type: object
+      description: An LLM-elaborated persona, not yet saved.
+      properties:
+        name:
+          type: string
+          example: Q3 lead-claim test — PCPs
+        profile:
+          type: string
+          example: Sub-specialist who weighs RCT data and guideline alignment
+    AvatarCreate:
+      type: object
+      properties:
+        name:
+          type: string
+          example: Q3 lead-claim test — PCPs
+        profile:
+          type: string
+          example: Sub-specialist who weighs RCT data and guideline alignment
+        scope:
+          $ref: '#/components/schemas/AvatarScope'
+        domain_id:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+        study_id:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+        source:
+          $ref: '#/components/schemas/AvatarSource'
+      required:
+      - name
+      - profile
+    AvatarUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          example: Q3 lead-claim test — PCPs
+        profile:
+          type: string
+          example: Sub-specialist who weighs RCT data and guideline alignment
+    AvatarList:
+      type: object
+      allOf:
+      - $ref: '#/components/schemas/PageMeta'
+      - type: object
+        properties:
+          next_cursor:
+            type: string
+            nullable: true
+            description: Cursor for the next page, or null if none.
+          has_more:
+            type: boolean
+            example: true
+          data:
+            type: array
+            items:
+              $ref: '#/components/schemas/Avatar'
+    Panel:
+      type: object
+      properties:
+        study_id:
+          type: string
+          format: uuid
+          description: read-only
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          readOnly: true
+        avatar_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          example:
+          - 3fa85f64-5717-4562-b3fc-2c963f66afa6
+    PanelUpdate:
+      type: object
+      properties:
+        avatar_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: min items 1
+          example:
+          - 3fa85f64-5717-4562-b3fc-2c963f66afa6
+      required:
+      - avatar_ids
+    RunStatus:
+      type: string
+      enum:
+      - draft
+      - configured
+      - estimated
+      - approved
+      - queued
+      - running
+      - awaiting_review
+      - finalized
+      - failed
+      - cancelled
+      - expired
+    ModelConfig:
+      type: object
+      description: Per-step model selection; omit to use defaults.
+      properties:
+        reaction_model:
+          type: string
+          example: anthropic/claude-sonnet
+        embedding_model:
+          type: string
+          example: openai/text-embedding-3-large
+        report_model:
+          type: string
+          example: anthropic/claude-haiku
+        provider_key_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Pin the run to a bring-your-own key.
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+    RunCreate:
+      type: object
+      properties:
+        model_config:
+          $ref: '#/components/schemas/ModelConfig'
+        repetitions:
+          type: integer
+          description: Optional N-repetition averaging for stability. — default 1
+          example: 1
+    Run:
+      type: object
+      allOf:
+      - $ref: '#/components/schemas/Timestamps'
+      - type: object
+        properties:
+          created_at:
+            type: string
+            format: date-time
+            description: read-only
+            example: '2026-01-15T09:30:00Z'
+            readOnly: true
+          updated_at:
+            type: string
+            format: date-time
+            description: read-only
+            example: '2026-01-15T09:30:00Z'
+            readOnly: true
+          id:
+            type: string
+            format: uuid
+            description: read-only
+            example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+            readOnly: true
+          study_id:
+            type: string
+            format: uuid
+            description: read-only
+            example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+            readOnly: true
+          status:
+            $ref: '#/components/schemas/RunStatus'
+          model_config:
+            $ref: '#/components/schemas/ModelConfig'
+          estimate:
+            $ref: '#/components/schemas/RunEstimate'
+          coverage_pct:
+            type: number
+            nullable: true
+            example: 70.0
+          started_at:
+            type: string
+            format: date-time
+            nullable: true
+            example: '2026-01-15T09:30:00Z'
+          finished_at:
+            type: string
+            format: date-time
+            nullable: true
+            example: '2026-01-15T09:30:00Z'
+          expires_at:
+            type: string
+            format: date-time
+            nullable: true
+            example: '2026-01-15T09:30:00Z'
+    RunList:
+      type: object
+      allOf:
+      - $ref: '#/components/schemas/PageMeta'
+      - type: object
+        properties:
+          next_cursor:
+            type: string
+            nullable: true
+            description: Cursor for the next page, or null if none.
+          has_more:
+            type: boolean
+            example: true
+          data:
+            type: array
+            items:
+              $ref: '#/components/schemas/Run'
+    RunEstimate:
+      type: object
+      properties:
+        persona_count:
+          type: integer
+          example: 20
+        message_count:
+          type: integer
+          example: 6
+        est_time_seconds_min:
+          type: integer
+          example: 240
+        est_time_seconds_max:
+          type: integer
+          example: 900
+        est_cost_credits_min:
+          type: number
+          example: 120.0
+        est_cost_credits_max:
+          type: number
+          example: 260.0
+        advice:
+          type: array
+          items:
+            type: string
+          description: Optional LLM guidance on the chosen parameters.
+          example:
+          - string
+    RunStatusView:
+      type: object
+      properties:
+        run_id:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+        status:
+          $ref: '#/components/schemas/RunStatus'
+        reactions_total:
+          type: integer
+          example: 120
+        reactions_done:
+          type: integer
+          example: 84
+        coverage_pct:
+          type: number
+          example: 70.0
+        message:
+          type: string
+          example: Running… 84 / 120 reactions
+    RunEventType:
+      type: string
+      enum:
+      - progress
+      - state_change
+      - awaiting_review
+      - completed
+      - failed
+    RunEvent:
+      type: object
+      description: One server-sent event payload.
+      properties:
+        type:
+          $ref: '#/components/schemas/RunEventType'
+        run_id:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+        status:
+          $ref: '#/components/schemas/RunStatus'
+        reactions_done:
+          type: integer
+          example: 84
+        reactions_total:
+          type: integer
+          example: 120
+        at:
+          type: string
+          format: date-time
+          example: '2026-01-15T09:30:00Z'
+    RankingEntry:
+      type: object
+      properties:
+        message_id:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+        text:
+          type: string
+          example: Superior efficacy vs standard of care
+        rank:
+          type: integer
+          example: 1
+        strength:
+          type: number
+          description: Bradley-Terry strength (sums to 1 across messages).
+          example: 0.42
+        recommendation:
+          type: string
+          description: one of recommended, runner_up, drop
+          example: recommended
+          enum:
+          - recommended
+          - runner_up
+          - drop
+    RunResults:
+      type: object
+      properties:
+        run_id:
+          type: string
+          format: uuid
+          description: read-only
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          readOnly: true
+        ranking:
+          type: array
+          items:
+            $ref: '#/components/schemas/RankingEntry'
+        report:
+          type: string
+          description: The qualitative narrative (Markdown).
+        baseline_lift_pct:
+          type: number
+          nullable: true
+          description: Winner’s lift vs baseline (results are reported as lift, not raw SSR).
+          example: 70.0
+    ScoreDistribution:
+      type: object
+      description: Probability mass per scale point behind a message/avatar score.
+      properties:
+        scale_point:
+          type: integer
+          example: 5
+        probability:
+          type: number
+          example: 0.42
+    AvatarReaction:
+      type: object
+      properties:
+        avatar_id:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+        avatar_name:
+          type: string
+          example: Q3 lead-claim test — PCPs
+        reaction:
+          type: string
+          description: The free-text reaction.
+          example: Compelling, but I would want head-to-head data.
+        score:
+          type: number
+          example: 0.42
+        distribution:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScoreDistribution'
+    MessageResult:
+      type: object
+      properties:
+        run_id:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+        message_id:
+          type: string
+          format: uuid
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+        text:
+          type: string
+          example: Superior efficacy vs standard of care
+        aggregate_score:
+          type: number
+          example: 0.42
+        reactions:
+          type: array
+          items:
+            $ref: '#/components/schemas/AvatarReaction'
+    ExportFormat:
+      type: string
+      enum:
+      - markdown
+      - pdf
+      - docx
+      - pptx
+    ExportRequest:
+      type: object
+      properties:
+        format:
+          $ref: '#/components/schemas/ExportFormat'
+        template_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: For pptx, an uploaded org template to render into.
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+      required:
+      - format
+    JobStatus:
+      type: string
+      enum:
+      - queued
+      - running
+      - succeeded
+      - failed
+    Job:
+      type: object
+      allOf:
+      - $ref: '#/components/schemas/Timestamps'
+      - type: object
+        properties:
+          created_at:
+            type: string
+            format: date-time
+            description: read-only
+            example: '2026-01-15T09:30:00Z'
+            readOnly: true
+          updated_at:
+            type: string
+            format: date-time
+            description: read-only
+            example: '2026-01-15T09:30:00Z'
+            readOnly: true
+          job_id:
+            type: string
+            format: uuid
+            description: read-only
+            example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+            readOnly: true
+          status:
+            $ref: '#/components/schemas/JobStatus'
+          kind:
+            type: string
+            description: one of export, reindex
+            example: export
+            enum:
+            - export
+            - reindex
+          resource_id:
+            type: string
+            format: uuid
+            nullable: true
+            example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          result_url:
+            type: string
+            format: uri
+            nullable: true
+            description: Populated on success (e.g., the export download URL).
+            example: https://api.questkart.example/v1/exports/…
+          error:
+            $ref: '#/components/schemas/Problem'
+            nullable: true
+    ModelType:
+      type: string
+      enum:
+      - chat
+      - embedding
+    Model:
+      type: object
+      properties:
+        id:
+          type: string
+          example: anthropic/claude-sonnet
+        name:
+          type: string
+          example: Claude Sonnet
+        type:
+          $ref: '#/components/schemas/ModelType'
+    Provider:
+      type: object
+      properties:
+        id:
+          type: string
+          example: anthropic
+        name:
+          type: string
+          example: Anthropic
+        supports_byo_key:
+          type: boolean
+          example: true
+        models:
+          type: array
+          items:
+            $ref: '#/components/schemas/Model'
+    ProviderKey:
+      type: object
+      allOf:
+      - $ref: '#/components/schemas/Timestamps'
+      - type: object
+        properties:
+          created_at:
+            type: string
+            format: date-time
+            description: read-only
+            example: '2026-01-15T09:30:00Z'
+            readOnly: true
+          updated_at:
+            type: string
+            format: date-time
+            description: read-only
+            example: '2026-01-15T09:30:00Z'
+            readOnly: true
+          id:
+            type: string
+            format: uuid
+            description: read-only
+            example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+            readOnly: true
+          provider:
+            type: string
+            example: openai
+          label:
+            type: string
+            example: Acme client key
+          last4:
+            type: string
+            description: read-only
+            example: 4f2a
+            readOnly: true
+    ProviderKeyCreate:
+      type: object
+      properties:
+        provider:
+          type: string
+          example: openai
+        label:
+          type: string
+          example: Acme client key
+        key:
+          type: string
+          description: The raw secret. Stored encrypted; never returned. — write-only
+      required:
+      - provider
+      - key
+    StudyNameSuggestion:
+      type: object
+      properties:
+        suggested_name:
+          type: string
+          example: Q3 lead-claim test — PCPs
+        suggested_description:
+          type: string
+          example: Test which claim wins for the Q3 PCP campaign
+        intent:
+          $ref: '#/components/schemas/Intent'
+    CreditBalance:
+      type: object
+      properties:
+        balance:
+          type: number
+          example: 4200.0
+        currency:
+          type: string
+          description: default credits
+          example: credits
+    LedgerEntry:
+      type: object
+      allOf:
+      - $ref: '#/components/schemas/Timestamps'
+      - type: object
+        properties:
+          created_at:
+            type: string
+            format: date-time
+            description: read-only
+            example: '2026-01-15T09:30:00Z'
+            readOnly: true
+          updated_at:
+            type: string
+            format: date-time
+            description: read-only
+            example: '2026-01-15T09:30:00Z'
+            readOnly: true
+          id:
+            type: string
+            format: uuid
+            description: read-only
+            example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+            readOnly: true
+          delta:
+            type: number
+            description: Negative = consumed.
+            example: -180.0
+          reason:
+            type: string
+            example: run:finalize
+          run_id:
+            type: string
+            format: uuid
+            nullable: true
+            example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          byo_key:
+            type: boolean
+            description: True if metered against a bring-your-own key (tracked, not charged).
+            example: true
+    LedgerList:
+      type: object
+      allOf:
+      - $ref: '#/components/schemas/PageMeta'
+      - type: object
+        properties:
+          next_cursor:
+            type: string
+            nullable: true
+            description: Cursor for the next page, or null if none.
+          has_more:
+            type: boolean
+            example: true
+          data:
+            type: array
+            items:
+              $ref: '#/components/schemas/LedgerEntry'
+    Usage:
+      type: object
+      properties:
+        from:
+          type: string
+          format: date
+          example: '2026-01-15'
+        to:
+          type: string
+          format: date
+          example: '2026-01-15'
+        total_tokens:
+          type: integer
+          example: 120
+        total_cost_credits:
+          type: number
+          example: 180.0
+        by_provider:
+          type: array
+          items:
+            type: object
+          example:
+          - '{ … }'
+    Role:
+      type: string
+      enum:
+      - operator
+      - admin
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: read-only
+          example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+          readOnly: true
+        name:
+          type: string
+          example: Q3 lead-claim test — PCPs
+        email:
+          type: string
+          format: email
+          example: operator@questkart.example
+        role:
+          $ref: '#/components/schemas/Role'
