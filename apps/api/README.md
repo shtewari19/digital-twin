@@ -32,10 +32,8 @@ cp .env.example .env
 # 2. Start Postgres (pgvector) + Redis — from the repo root
 (cd ../.. && docker compose up -d)
 
-# 3. Create a virtualenv and install dependencies
-python -m venv .venv
-source .venv/bin/activate
-pip install -e ".[dev]"
+# 3. Install dependencies
+uv sync
 
 # 4. Create the schema and seed dev data
 python scripts/apply_schema.py

@@ -29,7 +29,7 @@ User → Entra (sign in) → FE gets JWT → API validates JWT → JIT user row 
 - Access to [Azure Portal](https://portal.azure.com) under the Questkart tenant
 - Permission to create an App Registration (admin consent may need Chandra Sir)
 - Digital Twin API running locally (`uvicorn` from `apps/api`)
-- Python 3.14+ with `pip install -e ".[dev]"` (includes `msal` for the token helper)
+- Python 3.14+ with `uv sync` (includes `msal` for the token helper)
 
 ---
 
@@ -132,7 +132,7 @@ ask an admin (see Contact).
 ```bash
 cd apps/api
 cp .env.example .env   # fill APP_ENTRA_* and Postgres
-pip install -e ".[dev]"
+uv sync
 uvicorn app.main:app --reload
 ```
 

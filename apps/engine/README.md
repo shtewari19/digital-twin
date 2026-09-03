@@ -32,9 +32,7 @@ real pipeline step needs it.
 
 ```bash
 cd apps/engine
-python -m venv .venv
-source .venv/bin/activate
-pip install -e ".[dev]"
+uv sync
 ```
 
 `pyproject.toml` has no runtime dependencies declared yet — add them as the

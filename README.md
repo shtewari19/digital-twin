@@ -58,7 +58,7 @@ this is convention rather than a hard gate — branch off `main` using one of:
 add one once `apps/web` has a real Next.js app to lint/build.
 
 **Dependency updates** ([`.github/dependabot.yml`](.github/dependabot.yml))
-opens weekly PRs per app (`apps/api`, `apps/engine` on pip; `apps/web` on
+opens weekly PRs per app (`apps/api`, `apps/engine` on uv; `apps/web` on
 npm) plus the GitHub Actions used in CI.
 
 **Code ownership** ([`.github/CODEOWNERS`](.github/CODEOWNERS)) currently
