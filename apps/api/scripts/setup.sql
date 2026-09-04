@@ -167,9 +167,10 @@ CREATE INDEX idx_avatars_scope_domain ON core.avatars (scope, domain_id);
 CREATE INDEX idx_avatars_study        ON core.avatars (study_id);
 
 CREATE TABLE core.study_avatars (
-    study_id  uuid        NOT NULL REFERENCES core.studies(id) ON DELETE CASCADE,
-    avatar_id uuid        NOT NULL REFERENCES core.avatars(id) ON DELETE RESTRICT,
-    added_at  timestamptz NOT NULL DEFAULT now(),
+    study_id       uuid        NOT NULL REFERENCES core.studies(id) ON DELETE CASCADE,
+    avatar_id      uuid        NOT NULL REFERENCES core.avatars(id) ON DELETE RESTRICT,
+    replica_count  integer     NOT NULL DEFAULT 1 CHECK (replica_count >= 1),
+    added_at       timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (study_id, avatar_id)
 );
 CREATE INDEX idx_study_avatars_avatar ON core.study_avatars (avatar_id);

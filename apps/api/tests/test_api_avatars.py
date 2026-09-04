@@ -320,24 +320,26 @@ def test_get_panel_study_not_found_returns_404(client, app, current_user):
     assert response.status_code == 404
 
 
-def test_get_panel_happy_path(client, app, current_user):
+def test_get_panel_happy_path_includes_replica_count(client, app, current_user):
     study_id = uuid.uuid4()
     avatar_id = uuid.uuid4()
     _install_db(
-        app, FakeAsyncSession(get_result=StudyRow(id=study_id), execute_rows=[avatar_id])
+        app,
+        FakeAsyncSession(get_result=StudyRow(id=study_id), execute_rows=[(avatar_id, 3)]),
     )
 
     response = client.get(f"/api/v1/studies/{study_id}/panel")
 
     assert response.status_code == 200
-    assert response.json()["avatar_ids"] == [str(avatar_id)]
+    assert response.json()["avatars"] == [{"avatar_id": str(avatar_id), "replica_count": 3}]
 
 
 def test_set_panel_study_not_found_returns_404(client, app, current_user):
     _install_db(app, FakeAsyncSession(get_result=None))
 
     response = client.put(
-        f"/api/v1/studies/{uuid.uuid4()}/panel", json={"avatar_ids": [str(uuid.uuid4())]}
+        f"/api/v1/studies/{uuid.uuid4()}/panel",
+        json={"avatars": [{"avatar_id": str(uuid.uuid4())}]},
     )
 
     assert response.status_code == 404
@@ -347,7 +349,7 @@ def test_set_panel_requires_at_least_one_avatar(client, app, current_user):
     study_id = uuid.uuid4()
     _install_db(app, FakeAsyncSession(get_result=StudyRow(id=study_id)))
 
-    response = client.put(f"/api/v1/studies/{study_id}/panel", json={"avatar_ids": []})
+    response = client.put(f"/api/v1/studies/{study_id}/panel", json={"avatars": []})
 
     assert response.status_code == 422
 
@@ -359,25 +361,55 @@ def test_set_panel_rejects_unknown_avatar(client, app, current_user):
     _install_db(app, session)
 
     response = client.put(
-        f"/api/v1/studies/{study_id}/panel", json={"avatar_ids": [str(uuid.uuid4())]}
+        f"/api/v1/studies/{study_id}/panel",
+        json={"avatars": [{"avatar_id": str(uuid.uuid4())}]},
     )
 
     assert response.status_code == 422
     assert "does not exist" in response.json()["detail"]
 
 
-def test_set_panel_replaces_full_set(client, app, current_user):
+def test_set_panel_rejects_replica_count_below_one(client, app, current_user):
+    study_id = uuid.uuid4()
+    _install_db(app, FakeAsyncSession(get_result=StudyRow(id=study_id)))
+
+    response = client.put(
+        f"/api/v1/studies/{study_id}/panel",
+        json={"avatars": [{"avatar_id": str(uuid.uuid4()), "replica_count": 0}]},
+    )
+
+    assert response.status_code == 422
+
+
+def test_set_panel_defaults_replica_count_to_one(client, app, current_user):
     study_id = uuid.uuid4()
     avatar_id = uuid.uuid4()
     session = FakeAsyncSession(get_results=[StudyRow(id=study_id), AvatarRow(id=avatar_id)])
     _install_db(app, session)
 
     response = client.put(
-        f"/api/v1/studies/{study_id}/panel", json={"avatar_ids": [str(avatar_id)]}
+        f"/api/v1/studies/{study_id}/panel", json={"avatars": [{"avatar_id": str(avatar_id)}]}
     )
 
     assert response.status_code == 200
-    assert response.json()["avatar_ids"] == [str(avatar_id)]
+    assert response.json()["avatars"] == [{"avatar_id": str(avatar_id), "replica_count": 1}]
+    assert session.added[0].replica_count == 1
+
+
+def test_set_panel_replaces_full_set_with_replica_counts(client, app, current_user):
+    study_id = uuid.uuid4()
+    avatar_id = uuid.uuid4()
+    session = FakeAsyncSession(get_results=[StudyRow(id=study_id), AvatarRow(id=avatar_id)])
+    _install_db(app, session)
+
+    response = client.put(
+        f"/api/v1/studies/{study_id}/panel",
+        json={"avatars": [{"avatar_id": str(avatar_id), "replica_count": 5}]},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["avatars"] == [{"avatar_id": str(avatar_id), "replica_count": 5}]
     # One DELETE (clear old panel) + one add (new membership row).
     assert len(session.execute_calls) == 1
     assert len(session.added) == 1
+    assert session.added[0].replica_count == 5
