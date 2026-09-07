@@ -46,6 +46,7 @@ __all__ = [
     "Outcome",
     "OutcomeUpdate",
     "Panel",
+    "PanelMember",
     "PanelUpdate",
     "Scale",
     "Source",
@@ -428,14 +429,26 @@ class AvatarUpdate(APIModel):
 AvatarList = Page[Avatar]
 
 
+class PanelMember(APIModel):
+    """One avatar's membership in a study's panel."""
+
+    avatar_id: UUID
+    replica_count: int = Field(
+        default=1,
+        ge=1,
+        description="How many independent replicas of this avatar react in a run.",
+        examples=[1],
+    )
+
+
 class Panel(APIModel):
     """The set of avatars selected to react in a study's runs."""
 
     study_id: UUID
-    avatar_ids: list[UUID] = Field(default_factory=list)
+    avatars: list[PanelMember] = Field(default_factory=list)
 
 
 class PanelUpdate(APIModel):
     """Body for `PUT /studies/{study_id}/panel`."""
 
-    avatar_ids: list[UUID] = Field(min_length=1)
+    avatars: list[PanelMember] = Field(min_length=1)

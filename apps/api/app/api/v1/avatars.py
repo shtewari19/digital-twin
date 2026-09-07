@@ -21,6 +21,7 @@ from app.schemas import (
     AvatarScope,
     AvatarUpdate,
     Panel,
+    PanelMember,
     PanelUpdate,
 )
 
@@ -177,12 +178,23 @@ async def get_panel(
     """`GET /api/v1/studies/{study_id}/panel`."""
     if await session.get(StudyRow, study_id) is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Study not found.")
-    avatar_ids = (
-        (await session.execute(select(StudyAvatar.avatar_id).where(StudyAvatar.study_id == study_id)))
-        .scalars()
+    rows = (
+        (
+            await session.execute(
+                select(StudyAvatar.avatar_id, StudyAvatar.replica_count).where(
+                    StudyAvatar.study_id == study_id
+                )
+            )
+        )
         .all()
     )
-    return Panel(study_id=study_id, avatar_ids=list(avatar_ids))
+    return Panel(
+        study_id=study_id,
+        avatars=[
+            PanelMember(avatar_id=avatar_id, replica_count=replica_count)
+            for avatar_id, replica_count in rows
+        ],
+    )
 
 
 @router.put("/studies/{study_id}/panel", response_model=Panel)
@@ -196,15 +208,21 @@ async def set_panel(
     if await session.get(StudyRow, study_id) is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Study not found.")
 
-    for avatar_id in body.avatar_ids:
-        if await session.get(AvatarRow, avatar_id) is None:
+    for member in body.avatars:
+        if await session.get(AvatarRow, member.avatar_id) is None:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=f"Avatar {avatar_id} does not exist.",
+                detail=f"Avatar {member.avatar_id} does not exist.",
             )
 
     await session.execute(delete(StudyAvatar).where(StudyAvatar.study_id == study_id))
-    for avatar_id in body.avatar_ids:
-        session.add(StudyAvatar(study_id=study_id, avatar_id=avatar_id))
+    for member in body.avatars:
+        session.add(
+            StudyAvatar(
+                study_id=study_id,
+                avatar_id=member.avatar_id,
+                replica_count=member.replica_count,
+            )
+        )
     await session.commit()
-    return Panel(study_id=study_id, avatar_ids=list(body.avatar_ids))
+    return Panel(study_id=study_id, avatars=list(body.avatars))

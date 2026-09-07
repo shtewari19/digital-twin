@@ -280,7 +280,7 @@ Avatar CRUD plus the per-study `panel` sub-resource.
 | `GET /avatars` | Query order; `scope`/`domain_id`/`study_id` filters (individually and combined); invalid `scope` → 422; cursor round-trip (valid + invalid → 422); limit bounds. |
 | `POST /avatars` — scope validation | `library` scope requires (and validates) `domain_id`; `study` scope requires (and validates) `study_id`; defaults to `library`; the non-selected scope's id is dropped on write; `source` defaults to `custom`. |
 | `GET/PATCH/DELETE /avatars/{id}` | Happy path + 404s; `PATCH` is restricted to `name`/`profile` per the API spec; `DELETE` referenced by a panel → 409 via `IntegrityError`. |
-| `GET/PUT /studies/{id}/panel` | Study 404 on both; happy path (`GET` reads the join table, `PUT` replaces it); `avatar_ids` requires ≥1 entry; unknown avatar id → 422. |
+| `GET/PUT /studies/{id}/panel` | Study 404 on both; happy path round-trips each member's `replica_count` (`GET` reads the join table, `PUT` replaces it); `avatars` requires ≥1 entry; `replica_count` must be ≥1; defaults to 1 when omitted; unknown avatar id → 422. |
 
 ### 3.13 `app/api/v1/sources.py` — tested by `test_api_sources.py`
 
