@@ -13,10 +13,14 @@ from app.core.logging import configure_logging
 
 # Initialise logging before any module-level logger calls fire.
 configure_logging()
+from app.core.problem import install_problem_handlers
 from app.core.temporal import init_temporal_client
 
 app = FastAPI(title="Core API", version="0.1.0")
 
+# Must run before the router is included so our handlers, not FastAPI's
+# defaults, render every non-2xx as RFC 7807 application/problem+json.
+install_problem_handlers(app)
 app.include_router(v1_router)
 
 

@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime
 from typing import ClassVar
 
-from sqlalchemy import Enum, String, func
+from sqlalchemy import Enum, Numeric, String, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -14,9 +14,10 @@ from app.db.base import Base
 
 class RunStatus(str, enum.Enum):
     """Mirrors the CHECK constraint on runs.runs.status exactly.
-    This ticket only drives DRAFT -> QUEUED -> RUNNING -> FINALIZED/FAILED;
-    the rest exist because the same table backs later tickets
-    (cost estimate, approval gate, review)."""
+    The full lifecycle is DRAFT -> (CONFIGURED) -> ESTIMATED -> APPROVED
+    -> QUEUED -> RUNNING -> AWAITING_REVIEW -> FINALIZED, with FAILED,
+    CANCELLED and EXPIRED as alternative terminal states. See the state
+    machine in apps/api/app/api/v1/runs.py."""
     DRAFT = "draft"
     CONFIGURED = "configured"
     ESTIMATED = "estimated"
@@ -46,13 +47,18 @@ class Run(Base):
     )
     workflow_id: Mapped[str | None] = mapped_column(String, nullable=True)
 
-    # Columns that exist on the table but this ticket doesn't touch yet —
-    # declared so the model matches the table 1:1; later tickets populate them.
+    # The rest of runs.runs, all now populated: config_snapshot + model_config
+    # by create_run, estimate by estimate_run, coverage_pct/actuals/error and
+    # the timestamps by the workflow's update_run_status activity.
     config_snapshot: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     model_config_json: Mapped[dict | None] = mapped_column(
         "model_config", JSONB, nullable=True
     )
+    provider_key_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True
+    )
     estimate: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    coverage_pct: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
     actuals: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     error: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(nullable=True)

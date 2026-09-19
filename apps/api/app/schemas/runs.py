@@ -86,8 +86,17 @@ class RunCreate(APIModel):
         alias="model_config",
         description="Per-step model selection; omit to use defaults.",
     )
-    repetitions: int = Field(
-        default=1, description="Optional N-repetition averaging for stability."
+    respondents_per_avatar: int = Field(
+        default=1,
+        ge=1,
+        description=(
+            "How many respondents to panel for each avatar/persona. An avatar "
+            "is an archetype (e.g. 'Academic Oncologist'), not a person: this "
+            "is how many of them the study surveys. The run produces "
+            "personas x respondents_per_avatar x claims reactions, so raising "
+            "it multiplies both cost and runtime — and tightens the ranking."
+        ),
+        examples=[5],
     )
 
 

@@ -26,7 +26,9 @@ differently:
 
 ```mermaid
 flowchart TD
-    A["API: POST /studies/{id}/runs\n(create Run, status=draft)"] --> B["API: POST /runs/{id}/start\n(status=queued, starts StudyRunWorkflow)"]
+    A0["API: POST /studies/{id}/runs\n(create Run, status=draft, snapshot config)"] --> A1["API: POST /runs/{id}/estimate\n(status=estimated)"]
+    A1 --> A["API: POST /runs/{id}/approve\nGate 1 — status=approved"]
+    A --> B["API: POST /runs/{id}/start\n(status=queued, starts StudyRunWorkflow)"]
     B --> C["update_run_status: running"]
     C --> D["fetch_study_context\nanchors + KBQ + penalties (config_snapshot) + avatar×message pairs"]
     D --> E["embed_batch: anchor texts\n(once per run)"]
@@ -43,9 +45,11 @@ flowchart TD
     N1 --> N2["_bradley_terry()\n500-iter MM -> strengths"]
     N2 --> N3["rank + recommendation tier\n-> runs.run_message_results"]
     N3 --> O["generate_run_report\ncohort breakdown + 2 LLM calls -> runs.run_reports"]
-    O --> P["update_run_status: awaiting_review"]
-    P --> Q["auto-approve\n(no blocking wait)"]
-    Q --> R["update_run_status: finalized"]
+    O --> P["update_run_status: awaiting_review\n+ coverage_pct"]
+    P --> Q{"Gate 2 — wait_condition\nfinalize / reject / cancel / timeout"}
+    Q -- "POST /runs/{id}/finalize" --> R["update_run_status: finalized"]
+    Q -- "POST /runs/{id}/cancel" --> R2["update_run_status: cancelled"]
+    Q -- "review_timeout_seconds elapsed" --> R3["update_run_status: expired"]
 ```
 
 Any activity's terminal failure (retries exhausted) jumps straight to
@@ -131,30 +135,108 @@ lowest-ranked message, `summary` = cohort breakdown + penalty hit counts as JSON
 
 ## Seeding a test study
 
-`fixtures/scale_test.yaml` + `scripts/seed_scale_test.py` — see
-[`../../TESTING.md`](../../TESTING.md) for the full walkthrough. Two things
-worth knowing about how seeding maps onto the schema:
+[`../api/scripts/seed_hardcoded_run.sql`](../api/scripts/seed_hardcoded_run.sql) —
+see [`../../TESTING.md`](../../TESTING.md) for the full walkthrough and
+[`../../CODE_WALKTHROUGH.md`](../../CODE_WALKTHROUGH.md) for the script-by-script
+account. Three things worth knowing about how seeding maps onto the schema:
 
-- **Respondent multiplicity.** `runs.run_reactions` has `UNIQUE(run_id, avatar_id, message_id)` — one reaction per avatar per message. There's no "respondent count" field to layer multiple synthetic respondents onto a single persona row. So each persona in the fixture is physically cloned into `respondents_per_persona` distinct `core.avatars` rows (`"{persona} #01"` .. `"#NN"`, same profile text, different id) rather than adding a schema column for it.
-- **Penalties as run config, not a table.** `runs.runs.config_snapshot jsonb` already exists for "snapshot the study's current config." The seed script writes `{"penalties": [...]}` there directly (`--set-run-config`); `fetch_study_context` reads it back. No new table, unlike anchors which do have their own `core.anchors` table.
+- **`config_snapshot` is the whole pipeline input.** `kbq`, `claims`, `avatar_ids`, `anchors` and `penalties` all live in that one `jsonb` column, and `fetch_study_context` reads nothing else. Freezing the text (not just the ids) is what makes a run reproducible: editing `core.messages` after creation cannot change what an already-created run executes.
+- **Avatar prompts live in a file, not a column.** `fixtures/avatar_prompts.txt` + `app/avatar_prompts.py`. `core.avatars` keeps only the persona's identity, because `runs.run_reactions.avatar_id` is a foreign key onto it; `profile` is now a pointer string. A prompt edit is therefore a reviewable code change, not an untracked `UPDATE`.
+- **Respondent multiplicity is still unsolved.** `runs.run_reactions` has `UNIQUE(run_id, avatar_id, message_id)` — one reaction per avatar per message. `config_snapshot.repetitions` is honoured by the estimate and `pair_count` but **not** by the engine's pair expansion, so it must stay at 1 until either the constraint gains a repetition column or personas are physically cloned into distinct `core.avatars` rows.
 
 ## Run status lifecycle
 
 ```mermaid
 stateDiagram-v2
     [*] --> draft: POST /studies/{id}/runs
-    draft --> queued: POST /runs/{id}/start
+    draft --> estimated: POST /runs/{id}/estimate
+    estimated --> estimated: re-estimate
+    estimated --> approved: POST /runs/{id}/approve (Gate 1)
+    approved --> queued: POST /runs/{id}/start
     queued --> running: workflow's first activity
     running --> awaiting_review: report written
-    awaiting_review --> finalized: auto-approve (default)
-    awaiting_review --> cancelled: reject() signal, if it wins the race
+    awaiting_review --> finalized: POST /runs/{id}/finalize (Gate 2)
+    awaiting_review --> expired: no review within review_timeout_seconds
+    draft --> cancelled: POST /runs/{id}/cancel (no workflow yet)
+    estimated --> cancelled: POST /runs/{id}/cancel
+    approved --> cancelled: POST /runs/{id}/cancel
+    queued --> cancelled: POST /runs/{id}/cancel
+    running --> cancelled: POST /runs/{id}/cancel
+    awaiting_review --> cancelled: POST /runs/{id}/cancel (= reject results)
     running --> failed: any activity exhausts retries
 ```
 
-The workflow still writes `awaiting_review` for the audit trail and the
-`approve`/`reject` signals still exist, but nothing blocks waiting for one —
-see `StudyRunWorkflow.run`'s auto-approve step. A signal only changes the
-outcome if it happens to arrive in the brief window before that line runs.
+### The two human gates
+
+Both gates in the contract are now real, and they live in different places
+on purpose:
+
+- **Gate 1 — config approval (`POST /runs/{id}/approve`).** Sign-off on the
+  snapshotted config and the estimate *before any money is spent*. No
+  workflow exists yet, so this is a plain `estimated → approved` write in
+  `apps/api`. `start` refuses anything that isn't `approved`, which is what
+  makes the gate load-bearing rather than advisory.
+- **Gate 2 — results review (`POST /runs/{id}/finalize`, or `/cancel` to
+  reject).** After `generate_run_report` the workflow parks at
+  `awaiting_review` on `workflow.wait_condition` and genuinely waits. Nothing
+  is pinned while it waits — the condition is Temporal server-side state, so
+  the wait survives worker restarts and deploys, and the run reads
+  `awaiting_review` in Postgres the whole time. `finalize` → `finalized`,
+  `cancel` → `cancelled` (results stay in the DB, they just never become
+  exportable), and `review_timeout_seconds` (default 24h,
+  `APP_RUN_REVIEW_TIMEOUT_SECONDS`) → `expired`.
+
+Set `APP_RUN_REVIEW_GATE_ENABLED=false` to restore the old auto-finalize
+behaviour — the flag is passed into the workflow at `start_workflow` time
+and carried across `continue_as_new`, so it's fixed for the life of a run
+rather than re-read mid-flight. That's what load tests and unattended
+environments should use; leaving the gate on in an unattended environment
+means every run sits at `awaiting_review` until it expires.
+
+`approve` remains registered as a workflow signal alias of `finalize`, and
+`reject` remains a signal with no API route of its own (cancelling from
+`awaiting_review` is how results are rejected) — both so a signal already in
+flight from a previous deployment still resolves to the same decision.
+
+## Cancelling a run
+
+One route — **`POST /runs/{id}/cancel`** — valid from *every* non-terminal
+status, before or after `start`. It is the only stop mechanism, and it
+covers all three things people mean by "stop this":
+
+- **Not started yet** (`draft`/`configured`/`estimated`/`approved`): there is
+  no workflow, so `apps/api` writes `cancelled` + `finished_at` itself and
+  the response already reads `cancelled`.
+- **Live** (`queued`/`running`/`awaiting_review`): sends the Temporal `cancel`
+  signal. `StudyRunWorkflow` checks `self._cancel_requested` at every point
+  it can safely stop — before the first batch, after each batch is
+  persisted, before `rollup_message_results`, before `generate_run_report`,
+  before the `awaiting_review` write, and inside the Gate 2 review wait —
+  then runs `update_run_status(status="cancelled", finished_at=...)` itself
+  via `_cancel()`. Worst-case latency is the remainder of the batch in
+  flight: the in-flight LLM call is deliberately allowed to finish and be
+  persisted rather than paying for it and discarding it. The DB row,
+  `run_reactions` written so far, and `finished_at` all land consistently.
+- **At Gate 2**: cancelling from `awaiting_review` *is* rejecting the
+  results. The ranking and report stay in the database and remain readable
+  through `/runs/{id}/results`; they simply never become exportable. Pass the
+  reason in `note`.
+
+**`?force=true`** escalates to `WorkflowHandle.terminate()` against the
+Temporal server instead of signalling. The workflow function never runs
+another line of Python, so it cannot write its own terminal status and
+`cancel_run()` writes `runs.runs.status='cancelled'` itself. Use it when a
+run has to stop this instant, or won't stop on its own — an activity that
+was mid-flight (an LLM call, a batch write) may not have committed its side
+effects. There is no separate `/terminate` endpoint; this flag is it.
+
+A run whose workflow has already closed underneath the request (finished,
+terminated, timed out) is not an error either — the signal fails, and the
+API falls back to writing the terminal status itself, so a cancel never
+leaves a run stranded looking live.
+
+The only 409 (`type: .../invalid-run-state`) is on an already-terminal
+run: `finalized`, `failed`, `cancelled`, or `expired`.
 
 ## Known gaps / things to know before extending this
 
@@ -166,9 +248,14 @@ outcome if it happens to arrive in the brief window before that line runs.
 - **Cohort breakdown is average-score ranking, not a true pairwise win
   rate per persona family** — simpler to compute, same practical signal for
   the report's prompt.
-- **No API route sets `config_snapshot`** — the seed script does it with a
-  direct SQL `UPDATE` as a stand-in until a real endpoint exists.
-- **No repetitions/model-selection plumbing yet** — `RunCreate.repetitions`
-  and `RunCreate.model_settings` exist in `apps/api`'s schema but the engine
-  doesn't read them; every run uses one fixed chat/embedding model pair from
-  `apps/engine/engine/.env`.
+- **`model_settings` is captured, not yet honoured.** `runs.runs.model_config`
+  is persisted at create time, but the engine still runs every pair with the
+  fixed chat/embedding pair from `apps/engine/.env`. Consuming it means
+  threading `model_config` into `llm.call_chat`.
+- **N-repetition averaging is not implemented.** The `repetitions` field was
+  removed rather than left as a knob that does nothing: `runs.run_reactions`
+  has `UNIQUE (run_id, avatar_id, message_id)`, so a second sample of a pair
+  would overwrite the first, and the inflated `pair_count` left the progress
+  bar permanently short. Implementing it means widening that constraint with
+  a `repetition` column and expanding the pair list in `fetch_study_context`,
+  or cloning each persona into N `core.avatars` rows.

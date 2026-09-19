@@ -14,15 +14,9 @@ from pathlib import Path
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-_ENGINE_ROOT = Path(__file__).resolve().parent.parent
-_ENV_PATH = next(
-    (
-        path
-        for path in (_ENGINE_ROOT / ".env", _ENGINE_ROOT / "engine" / ".env")
-        if path.is_file()
-    ),
-    _ENGINE_ROOT / ".env",
-)
+#: Resolved absolutely, not relative to the working directory, so
+#: `python -m app.worker` behaves the same wherever it is launched from.
+_ENV_PATH = Path(__file__).resolve().parent.parent / ".env"
 
 
 class Settings(BaseSettings):
@@ -55,8 +49,17 @@ class Settings(BaseSettings):
         default="https://ai.questkart.cloud/embeddings",
         validation_alias="EMBEDDING_MODEL_ENDPOINT",
     )
-    embedding_batch_size: int = 50
-    max_batches_per_run: int = 1000
+    #: Upper bound on texts per HTTP request to the embedding service.
+    #: Independent of the workflow's pair batch size.
+    embedding_batch_size: int = 25
+    #: The real ceiling is the request's total SIZE, not its item count: the
+    #: service was measured returning 500 at ~30 KB of text and 200 at ~25 KB.
+    #: Chunking on bytes keeps requests safe whatever length the reactions
+    #: happen to be — count-based chunking silently breaks when a panel starts
+    #: producing longer answers.
+    embedding_max_request_bytes: int = 20_000
+    #: LLM calls fanned out in parallel inside one generate_reaction_batch.
+    #: Turn it down if Azure starts rate-limiting a large panel.
     reaction_concurrency: int = 8
 
     @property

@@ -2864,10 +2864,6 @@ components:
       properties:
         model_config:
           $ref: '#/components/schemas/ModelConfig'
-        repetitions:
-          type: integer
-          description: Optional N-repetition averaging for stability. — default 1
-          example: 1
     Run:
       type: object
       allOf:

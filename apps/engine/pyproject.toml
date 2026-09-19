@@ -1,7 +1,7 @@
 [project]
 name = "digital-twin-engine"
 version = "0.1.0"
-description = "SSR pipeline workers. Not implemented yet — see README.md."
+description = "SSR pipeline workers: Temporal workflow + activities."
 requires-python = ">=3.14"
 dependencies = [
     "temporalio>=1.7",
@@ -12,7 +12,6 @@ dependencies = [
     "pydantic>=2.9",
     "pydantic-settings>=2.5",
     "openai>=1.40",
-    "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]
@@ -23,14 +22,29 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-# "app*" is where the real code lives (config.py, activities.py, worker.py,
-# workflows/); "engine*" is a leftover placeholder package. Both are included
-# so an actual `pip install -e .` exposes app/, not just the stub.
-include = ["app*", "engine*"]
+include = ["app*"]
 
 [tool.ruff]
-line-length = 100
+line-length = 120
 target-version = "py311"
+
+[tool.ruff.lint]
+# Correctness first. B (bugbear) catches the mistakes that actually bite —
+# B905 in particular: a zip() without strict= silently truncates to the
+# shortest input, which in this pipeline would drop scored pairs and still
+# report success.
+select = ["E4", "E7", "E9", "E501", "F", "I", "B", "UP", "C4", "ARG", "RUF"]
+ignore = [
+    # Em dashes and arrows are used deliberately in prose docstrings.
+    "RUF001", "RUF002", "RUF003",
+    # `class X(str, Enum)` is intentional: the SQLAlchemy mapping relies on
+    # values_callable over the members, which StrEnum would change.
+    "UP042",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# main.py configures logging before the remaining imports, on purpose.
+"app/main.py" = ["E402"]
 
 [dependency-groups]
 dev = [

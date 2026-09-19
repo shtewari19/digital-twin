@@ -9,16 +9,9 @@ import asyncpg
 
 from app.config import settings
 
-_pool: asyncpg.Pool | None = None
-
 
 async def create_pool() -> asyncpg.Pool:
-    global _pool
-    _pool = await asyncpg.create_pool(settings.asyncpg_dsn, min_size=2, max_size=10)
-    return _pool
-
-
-def get_pool() -> asyncpg.Pool:
-    if _pool is None:
-        raise RuntimeError("DB pool not initialized — call create_pool() first")
-    return _pool
+    """Create the pool. Called once, from worker.py, which then hands it to
+    StudyDataActivities — there is no module-level accessor on purpose, so the
+    pool's lifetime is owned by the process that created it."""
+    return await asyncpg.create_pool(settings.asyncpg_dsn, min_size=2, max_size=10)

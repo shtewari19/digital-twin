@@ -206,6 +206,23 @@ CREATE TABLE platform.jobs (
 CREATE INDEX idx_jobs_resource ON platform.jobs (resource_type, resource_id);
 CREATE INDEX idx_jobs_status   ON platform.jobs (status);
 
+-- Backs the optional `Idempotency-Key` header on every state-changing run
+-- endpoint. The composite primary key is the at-most-once guarantee: a
+-- retried POST loses the INSERT ... ON CONFLICT race and replays the stored
+-- (resource_id, status_code) instead of doing the work twice.
+-- See apps/api/app/core/idempotency.py.
+CREATE TABLE platform.idempotency_keys (
+    key          text        NOT NULL,
+    endpoint     text        NOT NULL,               -- e.g. 'create_run', 'start_run'
+    user_id      uuid        NOT NULL REFERENCES core.users(id) ON DELETE CASCADE,
+    resource_id  uuid,                               -- null while the first request is in flight
+    status_code  integer,
+    created_at   timestamptz NOT NULL DEFAULT now(),
+    completed_at timestamptz,
+    PRIMARY KEY (key, endpoint, user_id)
+);
+CREATE INDEX idx_idempotency_created ON platform.idempotency_keys (created_at);
+
 -- =====================================================================
 -- SCHEMA runs — execution & results
 -- =====================================================================
@@ -241,6 +258,11 @@ CREATE TABLE runs.run_reactions (
     run_id       uuid         NOT NULL REFERENCES runs.runs(id)     ON DELETE CASCADE,
     avatar_id    uuid         NOT NULL REFERENCES core.avatars(id)  ON DELETE RESTRICT,
     message_id   uuid         NOT NULL REFERENCES core.messages(id) ON DELETE RESTRICT,
+    -- Which respondent of this avatar/persona produced the reaction, 1..N
+    -- where N = config_snapshot.respondents_per_avatar. An avatar is a
+    -- persona (an archetype), not a person: a study panels N respondents per
+    -- persona, and each is an independent judge in the Bradley-Terry rollup.
+    respondent   integer      NOT NULL DEFAULT 1,
     reaction     text,
     score        numeric(6,4),
     distribution jsonb,
@@ -249,9 +271,10 @@ CREATE TABLE runs.run_reactions (
     embedding    vector(1536),   -- optional: reproducibility/debug (see ADR)
     created_at   timestamptz  NOT NULL DEFAULT now(),
     updated_at   timestamptz  NOT NULL DEFAULT now(),
-    CONSTRAINT uq_reaction UNIQUE (run_id, avatar_id, message_id)
+    CONSTRAINT uq_reaction UNIQUE (run_id, avatar_id, message_id, respondent)
 );
-CREATE INDEX idx_reactions_run_msg ON runs.run_reactions (run_id, message_id);
+CREATE INDEX idx_reactions_run_msg    ON runs.run_reactions (run_id, message_id);
+CREATE INDEX idx_reactions_run_avatar_resp ON runs.run_reactions (run_id, avatar_id, respondent);
 
 CREATE TABLE runs.run_message_results (
     id              uuid        PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -15,3 +15,10 @@ Questkart_API.docx
 node_modules/
 .next/
 out/
+
+# Tool caches
+.ruff_cache/
+.pytest_cache/
+
+# Office lock files
+~$*

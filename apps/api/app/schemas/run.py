@@ -29,10 +29,20 @@ class RankingEntryOut(BaseModel):
 
 
 class RunResultsOut(BaseModel):
-    """Response for GET /runs/{run_id}/results — the ranking plus the
-    narrative report apps/engine's generate_run_report activity writes.
-    ranking/report/baseline_lift_pct are empty/null until the run reaches
-    at least awaiting_review."""
+    """Response for GET /runs/{run_id}/results.
+
+    Two things arrive at different times, by design:
+
+    * `ranking` is written as soon as scoring finishes, BEFORE the run pauses
+      at `awaiting_review`. It is what a reviewer reads in order to decide, and
+      it survives a rejection.
+    * `report` and `baseline_lift_pct` are written only AFTER a human approves
+      at Gate 2, because generating the narrative costs two LLM calls. They
+      stay null on a run that was rejected or expired.
+
+    Everything is empty/null while the run is still executing. This route never
+    errors for a run without results — it just returns the empty shape.
+    """
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -38,6 +38,34 @@ class Settings(BaseSettings):
     
     dev_user_id: UUID = UUID("00000000-0000-0000-0000-000000000001")
 
+
+    # -----------------------------------------------------------------------
+    # Run lifecycle
+    # -----------------------------------------------------------------------
+    # Gate 2. When true the workflow blocks at awaiting_review until
+    # /finalize or /reject arrives; set false to auto-finalize (the old
+    # behaviour) for load tests and unattended environments.
+    run_review_gate_enabled: bool = True
+    # How long the workflow waits at that gate before giving up and marking
+    # the run `expired`. Default 24h.
+    run_review_timeout_seconds: int = 86_400
+    # One active (queued/running/awaiting_review) run per user at a time.
+    max_active_runs_per_user: int = 1
+
+    # Estimate model — per-reaction bounds used by POST /runs/{id}/estimate.
+    # Wall-clock is per reaction *after* batch concurrency, so the min/max
+    # spread mostly reflects LLM latency variance.
+    estimate_seconds_per_reaction_min: float = 0.4
+    estimate_seconds_per_reaction_max: float = 1.5
+    estimate_credits_per_reaction_min: float = 0.8
+    estimate_credits_per_reaction_max: float = 1.8
+
+    # SSE (`GET /runs/{id}/events`): DB poll interval and a hard cap on how
+    # long one stream is held open, so an abandoned browser tab can't pin a
+    # connection and a DB session forever.
+    sse_poll_interval_seconds: float = 2.0
+    sse_max_duration_seconds: int = 3_600
+
     # ---------------------------------------------------------------------------
     # Microsoft Entra ID (Azure AD) — JWT validation
     # Required in .env — see apps/api/.env.example and README.md.

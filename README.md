@@ -22,8 +22,21 @@ these ever become independent products with separate release cadences.
 | App | Path | Stack | Status | Docs |
 |---|---|---|---|---|
 | Web | [`apps/web`](apps/web) | Next.js (App Router) + TypeScript | Not scaffolded yet | [apps/web/README.md](apps/web/README.md) |
-| API | [`apps/api`](apps/api) | FastAPI + SQLAlchemy (async) + Postgres/pgvector | Walking skeleton — one real endpoint | [apps/api/README.md](apps/api/README.md) |
-| Engine | [`apps/engine`](apps/engine) | Python workers (Temporal-orchestrated) | Not implemented yet | [apps/engine/README.md](apps/engine/README.md) |
+| API | [`apps/api`](apps/api) | FastAPI + SQLAlchemy (async) + Postgres/pgvector | Full run lifecycle, 14 endpoints | [apps/api/README.md](apps/api/README.md) |
+| Engine | [`apps/engine`](apps/engine) | Temporal workflow + activities | Complete pipeline, end-to-end tested | [apps/engine/README.md](apps/engine/README.md) |
+
+## Documentation
+
+| Document | What it covers |
+|---|---|
+| [`ARCHITECTURE.md`](ARCHITECTURE.md) | The one-diagram overview: input → snapshot → two gates → report. |
+| [`API_TO_ENGINE.md`](API_TO_ENGINE.md) | What each endpoint triggers, down to the DB write — the demo walkthrough. |
+| [`SSR_Engine_Architecture_Overview.docx`](SSR_Engine_Architecture_Overview.docx) | The same overview as a Word document, for sharing. |
+| [`STEPS.md`](STEPS.md) | **Start here.** Copy-paste commands, four terminals, run the workflow. |
+| [`TESTING.md`](TESTING.md) | Run it end to end and validate every stage. |
+| [`RUN_FLOW.md`](RUN_FLOW.md) | The flow: two human gates, what runs when, what each table holds, curl for every endpoint. |
+| [`CODE_WALKTHROUGH.md`](CODE_WALKTHROUGH.md) | Line by line: every function, class and database write, with file:line references. |
+| [`apps/engine/DESIGN.md`](apps/engine/DESIGN.md) | Design rationale and known gaps. |
 
 Each app is self-contained: its own dependency manifest
 (`apps/api/pyproject.toml`, `apps/engine/pyproject.toml`,
